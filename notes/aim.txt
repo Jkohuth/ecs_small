@@ -1,0 +1,19 @@
+This is a side project that will eventually be rolled into my modular ECS game engine. My lack of experience with ECS made me want to attempt
+to create a small standalone game using those concepts. 
+
+Goal: A text based adventure game organized in an ECS fashion.
+    Load/Store a grouping of Entities with certain components
+    Main event cycles through the different Systems every tick.
+    Those systems apply updates to inidivual components 
+    
+    Game should take end user input via certain commands.
+
+
+Resources:
+    Rust Conference Talk https://kyren.github.io/2018/09/14/rustconf-talk.html
+    Tiny ECS rust Pattern https://ianjk.com/ecs-in-rust/
+
+23-10-2021
+    Read through both Resources to see examples of ECS being used with Rust
+
+    Gather Information on how to store loaded Entities and Components
