@@ -7,7 +7,7 @@ trait Component {
     fn push_none(&mut self);
 }
 
-impl<T: 'static> Component for Vec<Option<T>> {
+impl<T: 'static> Component for RefCell<Vec<Option<T>>> {
     fn as_any(&self) -> &dyn std::any::Any {
         self as &dyn std::any::Any
     }
@@ -17,7 +17,7 @@ impl<T: 'static> Component for Vec<Option<T>> {
     }
 
     fn push_none(&mut self) {
-        self.push(None)
+        self.get_mut().push(None)
     }
 }
 
@@ -52,7 +52,6 @@ impl World {
             if let Some(component_vec) = component_vec.as_any_mut()
                 .downcast_mut::<RefCell<Vec<Option<ComponentType>>>>() 
             {
-                println!("Component Exists");
                 component_vec.borrow_mut()[entity] = Some(component);
                 return;
             }
@@ -66,9 +65,9 @@ impl World {
 
         new_component[entity] = Some(component);
 
-        print_type_of(&new_component);
+        //print_type_of(&new_component);
 
-        self.components.push(Box::new(new_component));
+        self.components.push(Box::new(RefCell::new(new_component)));
     }
 
     fn borrow_component_mut<ComponentType: 'static> (&self) -> Option<RefMut<Vec<Option<ComponentType>>>> {
@@ -85,7 +84,6 @@ impl World {
 
     fn borrow_component<ComponentType: 'static> (&self) -> Option<Ref<Vec<Option<ComponentType>>>> {
         for component_vec in self.components.iter() {
-            print_type_of(&component_vec);
             if let Some(component_vec) = component_vec
                 .as_any()
                 .downcast_ref::<RefCell<Vec<Option<ComponentType>>>>()
@@ -100,8 +98,8 @@ impl World {
 
 
 struct LocationComponent {
-    x: u32,
-    y: u32,
+    x: i32,
+    y: i32,
  }
 
 impl LocationComponent {
@@ -122,12 +120,16 @@ impl LocationComponent {
     }
 
     fn print_location(&self) {
-        print!("x: {}, y: {}", self.x, self.y);
+        println!("x: {}, y: {}", self.x, self.y);
     }
 }
 fn print_type_of<T>(_: &T) {
     println!("{}", std::any::type_name::<T>());
 }
+fn print_type_of_with_message<T>(message: &str, _: &T) {
+    println!("{}: {}",message, std::any::type_name::<T>());
+}
+
 struct PlayerComponent {
     location_component: LocationComponent,
     name: String,
@@ -148,7 +150,6 @@ impl PlayerComponent {
 fn input_system(buffer: &mut String) {
     get_input(buffer);
     process_string(buffer);
-    println!("Buffer {}", buffer);
 }
 
 fn get_input(buffer: &mut String) {
@@ -162,24 +163,62 @@ fn get_input(buffer: &mut String) {
 }
 
 fn process_string(buffer: &mut String) {
+    if buffer.to_lowercase().contains("exit") {
+        std::process::exit(0);
+    }
     if !buffer.to_lowercase().contains("move") {
         println!("Not the correct string");
     }
 
+    // Need to have a list of different strings that process string can reference
+    // Commands like "move" "check" "push" and have this process call the requisite system
+
 }
 
 fn print_location_system(world: &World) {
-    //let location_ref: RefMut<Vec<Option<LocationComponent>>> = world.borrow_component_mut::<LocationComponent>().unwrap_or(panic!("Component is none"));
-    if world.borrow_component::<LocationComponent>().is_none() {
-        println!("Unwrapped it is none");
+    let borrow_location_wrapped = world.borrow_component::<LocationComponent>();
+    if borrow_location_wrapped.is_none() {
+        println!("LocationComponent is none");
         std::process::exit(1);
     }
-    /*let location_iter = location_ref.iter();
+    let location_ref: Ref<Vec<Option<LocationComponent>>> = borrow_location_wrapped.unwrap();
+    let location_iter = location_ref.iter();
 
     for location in location_iter {
         let un = location.as_ref().unwrap();
         un.print_location();
-    }*/
+    }
+}
+
+fn update_location_system(world: & World, buffer: &String) {
+    let mut borrow_location_wrapped = world.borrow_component_mut::<LocationComponent>();
+
+    print_type_of_with_message("borrow_location_wrapped", &borrow_location_wrapped);
+    // Need to make a trait that will check and confirm if it is unwrapped and return 
+    // the internal vector
+    if borrow_location_wrapped.is_none() {
+        println!("LocationComponent is none");
+        std::process::exit(1);
+    }
+
+    let mut location_ref = borrow_location_wrapped.unwrap();
+    for location_wrapped in location_ref.iter_mut() {
+        print_type_of_with_message("location_wrapped",&location_wrapped);
+
+        let mut location_unwrapped = location_wrapped.as_mut().unwrap();
+        print_type_of_with_message("location_unwrapped",&location_unwrapped);
+
+        // brute force for now
+        if buffer.to_lowercase().contains("right") {
+            location_unwrapped.move_right();
+        } else if buffer.to_lowercase().contains("left") {
+            location_unwrapped.move_left();
+        } else if buffer.to_lowercase().contains("forward") {
+            location_unwrapped.move_forward();
+        } else if buffer.to_lowercase().contains("back") {
+            location_unwrapped.move_back();
+        }
+    }
 
 }
 
@@ -194,13 +233,13 @@ fn main() {
 
     loop {
 
-        //input_system(&mut buffer);
+        input_system(&mut buffer);
+        update_location_system(&world, &buffer);
         print_location_system(&world);
         // handle input
         // run systems (that edit game state)
     
-        println!("Buffer value after edits {}", buffer);
-    
+        //std::process::exit(0);
     }
 
 
