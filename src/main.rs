@@ -57,7 +57,6 @@ impl World {
             }
         }
         let mut new_component: Vec<Option<ComponentType>> = Vec::with_capacity(self.entities_count);
-        println!("Entities Count {}", self.entities_count);
 
         for _ in 0..self.entities_count {
             new_component.push(None);
@@ -96,6 +95,24 @@ impl World {
     }
 }
 
+#[allow(dead_code)]
+#[derive(Debug)]
+enum Command {
+    Move,
+    Check,
+    Use,
+}
+
+impl Command {
+    fn from_str(s: &str) -> Result<Command, ()> {
+        match s {
+            "move" => Ok(Command::Move),
+            "check" => Ok(Command::Check),
+            "use" => Ok(Command::Use),
+            _ => Err(()),
+        }
+    }
+}
 
 struct LocationComponent {
     x: i32,
@@ -131,17 +148,12 @@ fn print_type_of_with_message<T>(message: &str, _: &T) {
 }
 
 struct PlayerComponent {
-    location_component: LocationComponent,
     name: String,
 }
 
 impl PlayerComponent {
     fn new() -> Self {
         PlayerComponent {
-            location_component: LocationComponent {
-                x: 0,
-                y: 0,
-            },
             name: String::from("Player"),
         }
     }
@@ -156,7 +168,6 @@ fn get_input(buffer: &mut String) {
     io::Write::flush(&mut io::stdout());
 
     io::stdin().read_line(buffer);
-    print!("In function {}", buffer);
 
     //buffer.clear();
     //buffer.to_string()
@@ -166,8 +177,10 @@ fn process_string(buffer: &mut String) {
     if buffer.to_lowercase().contains("exit") {
         std::process::exit(0);
     }
-    if !buffer.to_lowercase().contains("move") {
-        println!("Not the correct string");
+
+    for iter in buffer.split_ascii_whitespace() {
+        let result = Command::from_str(&iter).unwrap();
+        println!("Result {:?}", result);
     }
 
     // Need to have a list of different strings that process string can reference
@@ -190,10 +203,24 @@ fn print_location_system(world: &World) {
     }
 }
 
+fn update_player_location_system(world: & World, buffer: &String) {
+    let mut players = world.borrow_component_mut::<PlayerComponent>().unwrap();
+    let mut locations = world.borrow_component_mut::<LocationComponent>().unwrap(); 
+    
+
+    let zip = players.iter_mut().zip(locations.iter_mut());
+    let iter = zip.filter_map(|(player, location)| Some((player.as_mut()?, location.as_mut()?)));
+
+    for (player, location) in iter {
+
+    }
+
+}
+
 fn update_location_system(world: & World, buffer: &String) {
+
     let mut borrow_location_wrapped = world.borrow_component_mut::<LocationComponent>();
 
-    print_type_of_with_message("borrow_location_wrapped", &borrow_location_wrapped);
     // Need to make a trait that will check and confirm if it is unwrapped and return 
     // the internal vector
     if borrow_location_wrapped.is_none() {
@@ -228,13 +255,14 @@ fn main() {
     let mut buffer = String::new();
 
     let mut world = World::new();
-    let location_entity = world.new_entity();
-    world.add_component_to_entity(location_entity, LocationComponent{x: 0, y: 0});
+    let player_entity = world.new_entity();
+    world.add_component_to_entity(player_entity, PlayerComponent::new());
+    world.add_component_to_entity(player_entity, LocationComponent{x: 0, y: 0});
 
     loop {
 
         input_system(&mut buffer);
-        update_location_system(&world, &buffer);
+        update_player_location_system(&world, &buffer);
         print_location_system(&world);
         // handle input
         // run systems (that edit game state)

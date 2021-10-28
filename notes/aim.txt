@@ -25,3 +25,27 @@ Resources:
     Now I need to take in input and edit the individual components. I also need to edit on entities that contain specifically 2 components
 
     Update, we are now able to edit individual components/entites based on user input
+
+    TODO:
+    Need to implement a trait for components to return the internal 
+        core::option::Option<core::cell::RefMut<alloc::vec::Vec<core::option::Option<ecs_small::Component>>>>
+    
+    Need to convert it to 
+        &mut ecs_small::Component
+
+28-10-2021
+    Looking over Bevy to see how it handles input and it's not too different from how I am currently handling input.
+    The initiation of the class takes the keyboard input and the game state to edit the player (which is part of the game world)
+
+    Remove LocationComponent from PlayerComponent thats some real object oriented thinking that won't function
+
+    Side Note: What if I require unqiue entities? As in there can only be one player? Something to keep thinking about.
+
+    For processing input string, I can prepare a list of enums
+        // Pseudo-Code
+        input = input.split(" ")
+        for command in command_enum {
+            if (input.contains(command.to_string())) {
+                return command; //Then I could match on the command to figure out which second command to use
+            }
+        }
