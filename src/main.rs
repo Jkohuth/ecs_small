@@ -98,14 +98,15 @@ impl World {
 #[allow(dead_code)]
 #[derive(Debug)]
 enum Command {
-    Move,
-    Check,
-    Use,
+    Move, // Only takes one of the four directions forward/back/left/right
+    Check, // Doesn't need to take anything else
+    Use,  // Needs to list the various items in the Game
 }
 
 impl Command {
     fn from_str(s: &str) -> Result<Command, ()> {
-        match s {
+        // Prepping the value before it's used
+        match s.to_lowercase().as_str() {
             "move" => Ok(Command::Move),
             "check" => Ok(Command::Check),
             "use" => Ok(Command::Use),
@@ -152,9 +153,9 @@ struct PlayerComponent {
 }
 
 impl PlayerComponent {
-    fn new() -> Self {
+    fn new(input: &str) -> Self {
         PlayerComponent {
-            name: String::from("Player"),
+            name: String::from(input),
         }
     }
 }
@@ -166,11 +167,9 @@ fn input_system(buffer: &mut String) {
 
 fn get_input(buffer: &mut String) {
     io::Write::flush(&mut io::stdout());
+    buffer.clear();
 
     io::stdin().read_line(buffer);
-
-    //buffer.clear();
-    //buffer.to_string()
 }
 
 fn process_string(buffer: &mut String) {
@@ -179,8 +178,19 @@ fn process_string(buffer: &mut String) {
     }
 
     for iter in buffer.split_ascii_whitespace() {
-        let result = Command::from_str(&iter).unwrap();
-        println!("Result {:?}", result);
+        // There has got to be a way to clean this up
+        // else let? if it's not an error than it needs to unwrapped
+        if let Err(()) =  Command::from_str(&iter) {
+            continue;
+        }
+        let from_str = Command::from_str(&iter);
+        let mut from_str_unwrapped;
+
+        match &from_str {
+            Err(()) => continue,
+            Ok(Command) => from_str_unwrapped = from_str.unwrap(),
+        }
+        println!("Result {:?}", iter);
     }
 
     // Need to have a list of different strings that process string can reference
@@ -212,7 +222,17 @@ fn update_player_location_system(world: & World, buffer: &String) {
     let iter = zip.filter_map(|(player, location)| Some((player.as_mut()?, location.as_mut()?)));
 
     for (player, location) in iter {
-
+        print!("Player {} ", player.name);
+        // Move player based on input
+        if buffer.to_lowercase().contains("right") {
+            location.move_right();
+        } else if buffer.to_lowercase().contains("left") {
+            location.move_left();
+        } else if buffer.to_lowercase().contains("forward") {
+            location.move_forward();
+        } else if buffer.to_lowercase().contains("back") {
+            location.move_back();
+        }
     }
 
 }
@@ -256,8 +276,11 @@ fn main() {
 
     let mut world = World::new();
     let player_entity = world.new_entity();
-    world.add_component_to_entity(player_entity, PlayerComponent::new());
+    world.add_component_to_entity(player_entity, PlayerComponent::new("Jakob"));
     world.add_component_to_entity(player_entity, LocationComponent{x: 0, y: 0});
+
+    let second_location = world.new_entity();
+    world.add_component_to_entity(second_location, LocationComponent{x: 0, y: 0});
 
     loop {
 

@@ -49,3 +49,10 @@ Resources:
                 return command; //Then I could match on the command to figure out which second command to use
             }
         }
+
+2-11-21
+    Tasks:
+        Iterate through the supplied text, confirm if its one of the enumerated command
+            Confirm if it's one of the three enumerations
+                ignore or throw warning?
+            branch off to a separate function if it's one of the them
