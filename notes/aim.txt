@@ -70,3 +70,21 @@ Resources:
                 World will contain a Map
                     Note: Add bounds that should be respected for Move-<DIRECTION>
         Help - Could be made at the end to explain the different commands
+
+6-11-21
+    I created a parser for the LocationComponent, which was surprisingly more difficult than 
+    anticipated, and a file parser so I can create the entire text based map from a text file.
+    
+    There are currently no checks to make sure it's structured correctly other than outright failing
+    thanks to the unwrap() method.
+
+    Add check command to look at any information at the area, may need to store the Map components
+    as more than a HashMap of LocationComponent -> String considering I may want different outcomes
+    based on which command is assigned to which tile
+
+    Does that put all the game logic into the map component or can I have separate files that will reuse
+    similar code?
+        Player-Map -> Checks an area
+        Player-Use -> Check if an item can be used at a certain area
+
+    this is all still new to me but I am currently satisfied with the progress I am making

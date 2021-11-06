@@ -139,6 +139,7 @@ impl Direction {
     }
 }
 
+#[derive(Eq, Hash)]
 struct LocationComponent {
     x: i32,
     y: i32,
@@ -164,6 +165,41 @@ impl LocationComponent {
     fn print_location(&self) {
         println!("x: {}, y: {}", self.x, self.y);
     }
+    fn to_string(&self) -> String {
+        return format!("x: {}, y:{}", self.x, self.y);
+    }
+
+    // This is a nightmare and I need to find a better way of doing this
+    fn parse(input: &str) -> Result<LocationComponent, &str> {
+        let mut x: i32 = 0;
+        let mut y: i32 = 0;
+        if !input.contains("x") || !input.contains("y") {
+            return Err("No Coordinates found");
+        }
+        let mut digits = String::new();
+        for c in input.chars() {
+            if c == 'y' {
+                x = digits.parse().unwrap();
+                digits.clear();
+                continue;
+            }
+            // Check if its a base 10 digit
+            if c.is_digit(10) {
+                digits.push(c);
+            }
+        }
+        y = digits.parse().unwrap();
+
+        Ok(LocationComponent { x: x, y: y})
+    }
+}
+impl PartialEq for LocationComponent {
+    fn eq(&self, other: &Self) -> bool {
+        if self.x == other.x && self.y == other.y {
+            return true;
+        }
+        false
+    }
 }
 
 struct MapComponent {
@@ -178,17 +214,26 @@ struct MapComponent {
 
 impl MapComponent {
     fn new(filename: &str) -> Self {
-        let area = HashMap::new();
-        /*let open_file = fs::File::open(filename).unwrap();
+        let mut area = HashMap::new();
+        println!("Filename {}", filename);
+        let open_file = fs::File::open(filename).unwrap();
         let reader = BufReader::new(open_file);
         for (index, line) in reader.lines().enumerate() {
             let line = line.unwrap();
-            println!("{}, {}", index +1, line);
-        }*/
-        let file = fs::read_to_string(filename).unwrap_or(String::from("Failed to find file"));
-        println!("File {} Contents {}", filename, file);
+            let vec_string: Vec<_> = line.split("|").collect();
+            // This code makes some assumptions about the strings provided
+            let location: LocationComponent = LocationComponent::parse(vec_string[0]).unwrap();
+            area.insert(location, String::from(vec_string[1]));
+        }
+        //let file = fs::read_to_string(filename).unwrap_or(String::from("Failed to find file"));
+        //println!("File {} Contents {}", filename, file);
         MapComponent {
             area
+        }
+    }
+    fn print_entire_map(&self) {
+        for i in self.area.iter() {
+            println!("At Location {} the information is {}", i.0.to_string(), i.1);
         }
     }
 }
@@ -250,8 +295,20 @@ fn print_location_system(world: &World) {
     let location_iter = location_ref.iter();
 
     for location in location_iter {
-        let un = location.as_ref().unwrap();
-        un.print_location();
+        location.as_ref().unwrap().print_location();
+    }
+}
+
+fn print_map_system(world: &World) {
+    let borrow_map_wrapped = world.borrow_component::<MapComponent>();
+    if borrow_map_wrapped.is_none() {
+        println!("MapComponent is none");
+        std::process::exit(1);
+    }
+    let map_ref: Ref<Vec<Option<MapComponent>>> = borrow_map_wrapped.unwrap();
+    let map_iter = map_ref.iter();
+    for map in map_iter {
+        map.as_ref().unwrap().print_entire_map();
     }
 }
 
@@ -285,7 +342,7 @@ fn handle_player_commands(player: (&PlayerComponent, &mut LocationComponent), co
             }
         },
         Ok(Command::Check) => {
-
+            // I need to pass world in here all together as I don't have the desired components -_-
         }
         Ok(Command::Use) => {
 
@@ -314,7 +371,8 @@ fn main() {
     let player_entity = world.new_entity();
     world.add_component_to_entity(player_entity, PlayerComponent::new("Jakob"));
     world.add_component_to_entity(player_entity, LocationComponent{x: 0, y: 0});
-    world.add_component_to_entity(player_entity, MapComponent::new("src/player_map.txt"));
+    world.add_component_to_entity(player_entity, MapComponent::new("player_map.txt"));
+    print_map_system(&world);
     std::process::exit(0);
 
     let second_location = world.new_entity();
