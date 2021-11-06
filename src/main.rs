@@ -1,5 +1,8 @@
 use std::io;
 use std::cell::{Ref, RefCell, RefMut};
+use std::collections::HashMap;
+use std::fs;
+use std::io::{BufRead, BufReader};
 
 trait Component {
     fn as_any(&self) -> &dyn std::any::Any;
@@ -104,13 +107,34 @@ enum Command {
 }
 
 impl Command {
-    fn from_str(s: &str) -> Result<Command, ()> {
+    fn from_str(s: &str) -> Result<Command, &str> {
         // Prepping the value before it's used
         match s.to_lowercase().as_str() {
             "move" => Ok(Command::Move),
             "check" => Ok(Command::Check),
             "use" => Ok(Command::Use),
-            _ => Err(()),
+            _ => Err("Failed to find command"),
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+enum Direction {
+    Forward,
+    Back,
+    Left,
+    Right,
+}
+
+impl Direction {
+    fn from_str(s: &str) -> Result<Direction, &str> {
+        match s.to_lowercase().as_str() {
+            "forward" => Ok(Direction::Forward),
+            "back" => Ok(Direction::Back),
+            "left" => Ok(Direction::Left),
+            "right" => Ok(Direction::Right),
+            _ => Err("Failed to find direction"),
         }
     }
 }
@@ -141,9 +165,39 @@ impl LocationComponent {
         println!("x: {}, y: {}", self.x, self.y);
     }
 }
+
+struct MapComponent {
+    // Does this need to be part of the player? 
+        // Having the player own the map seems odd it  should be a static variable instead
+    // Needs to contain vec<>
+    // I can have multiple maps based on who is holding it (enemy/player) so it should be
+    // a component added to the player
+    area: HashMap<LocationComponent, String>,
+
+}
+
+impl MapComponent {
+    fn new(filename: &str) -> Self {
+        let area = HashMap::new();
+        /*let open_file = fs::File::open(filename).unwrap();
+        let reader = BufReader::new(open_file);
+        for (index, line) in reader.lines().enumerate() {
+            let line = line.unwrap();
+            println!("{}, {}", index +1, line);
+        }*/
+        let file = fs::read_to_string(filename).unwrap_or(String::from("Failed to find file"));
+        println!("File {} Contents {}", filename, file);
+        MapComponent {
+            area
+        }
+    }
+}
+
+#[allow(unused)]
 fn print_type_of<T>(_: &T) {
     println!("{}", std::any::type_name::<T>());
 }
+#[allow(unused)]
 fn print_type_of_with_message<T>(message: &str, _: &T) {
     println!("{}: {}",message, std::any::type_name::<T>());
 }
@@ -160,11 +214,14 @@ impl PlayerComponent {
     }
 }
 
-fn input_system(buffer: &mut String) {
+fn input_system(buffer: &mut String) -> Vec<&str> {
     get_input(buffer);
-    process_string(buffer);
+    let command_vec = process_string(buffer);
+
+    command_vec
 }
 
+#[allow(unused)]
 fn get_input(buffer: &mut String) {
     io::Write::flush(&mut io::stdout());
     buffer.clear();
@@ -172,30 +229,15 @@ fn get_input(buffer: &mut String) {
     io::stdin().read_line(buffer);
 }
 
-fn process_string(buffer: &mut String) {
+fn process_string(buffer: &mut String) -> Vec<&str> {
     if buffer.to_lowercase().contains("exit") {
+        // Just terminate the program here if requested
         std::process::exit(0);
     }
+    let mut command_vec: Vec<&str> = vec![];
+    command_vec.extend(buffer.split_ascii_whitespace());
 
-    for iter in buffer.split_ascii_whitespace() {
-        // There has got to be a way to clean this up
-        // else let? if it's not an error than it needs to unwrapped
-        if let Err(()) =  Command::from_str(&iter) {
-            continue;
-        }
-        let from_str = Command::from_str(&iter);
-        let mut from_str_unwrapped;
-
-        match &from_str {
-            Err(()) => continue,
-            Ok(Command) => from_str_unwrapped = from_str.unwrap(),
-        }
-        println!("Result {:?}", iter);
-    }
-
-    // Need to have a list of different strings that process string can reference
-    // Commands like "move" "check" "push" and have this process call the requisite system
-
+    command_vec
 }
 
 fn print_location_system(world: &World) {
@@ -213,7 +255,7 @@ fn print_location_system(world: &World) {
     }
 }
 
-fn update_player_location_system(world: & World, buffer: &String) {
+fn update_player_system(world: & World, command_vec: &Vec<&str>) {
     let mut players = world.borrow_component_mut::<PlayerComponent>().unwrap();
     let mut locations = world.borrow_component_mut::<LocationComponent>().unwrap(); 
     
@@ -221,52 +263,46 @@ fn update_player_location_system(world: & World, buffer: &String) {
     let zip = players.iter_mut().zip(locations.iter_mut());
     let iter = zip.filter_map(|(player, location)| Some((player.as_mut()?, location.as_mut()?)));
 
-    for (player, location) in iter {
+    for (player, mut location) in iter {
         print!("Player {} ", player.name);
-        // Move player based on input
-        if buffer.to_lowercase().contains("right") {
-            location.move_right();
-        } else if buffer.to_lowercase().contains("left") {
-            location.move_left();
-        } else if buffer.to_lowercase().contains("forward") {
-            location.move_forward();
-        } else if buffer.to_lowercase().contains("back") {
-            location.move_back();
-        }
+        handle_player_commands((&player, &mut location), command_vec);
     }
 
 }
 
-fn update_location_system(world: & World, buffer: &String) {
-
-    let mut borrow_location_wrapped = world.borrow_component_mut::<LocationComponent>();
-
-    // Need to make a trait that will check and confirm if it is unwrapped and return 
-    // the internal vector
-    if borrow_location_wrapped.is_none() {
-        println!("LocationComponent is none");
-        std::process::exit(1);
+fn handle_player_commands(player: (&PlayerComponent, &mut LocationComponent), command_vec: &Vec<&str>) {
+    if command_vec.is_empty() {
+        return;
     }
+    let mut iter = command_vec.iter();
 
-    let mut location_ref = borrow_location_wrapped.unwrap();
-    for location_wrapped in location_ref.iter_mut() {
-        print_type_of_with_message("location_wrapped",&location_wrapped);
+    let command = Command::from_str(iter.next().unwrap_or(&"Failed to find next entry in vector"));
+    match command {
+        Ok(Command::Move) => {
+            let dir_wrapped = Direction::from_str(iter.next().unwrap_or(&"Failed to find next entry in vector"));
+            if let Ok(dir) = dir_wrapped {
+                update_location(player.1, dir);
+            }
+        },
+        Ok(Command::Check) => {
 
-        let mut location_unwrapped = location_wrapped.as_mut().unwrap();
-        print_type_of_with_message("location_unwrapped",&location_unwrapped);
+        }
+        Ok(Command::Use) => {
 
-        // brute force for now
-        if buffer.to_lowercase().contains("right") {
-            location_unwrapped.move_right();
-        } else if buffer.to_lowercase().contains("left") {
-            location_unwrapped.move_left();
-        } else if buffer.to_lowercase().contains("forward") {
-            location_unwrapped.move_forward();
-        } else if buffer.to_lowercase().contains("back") {
-            location_unwrapped.move_back();
+        }
+        Err(e) => {
+            println!("Error bad input: {}", e);
         }
     }
+}
 
+fn update_location(location: &mut LocationComponent, dir: Direction) {
+    match dir {
+        Direction::Forward => location.move_forward(),
+        Direction::Right => location.move_right(),
+        Direction::Left => location.move_left(),
+        Direction::Back => location.move_back(),
+    }
 }
 
 fn main() {
@@ -278,19 +314,16 @@ fn main() {
     let player_entity = world.new_entity();
     world.add_component_to_entity(player_entity, PlayerComponent::new("Jakob"));
     world.add_component_to_entity(player_entity, LocationComponent{x: 0, y: 0});
+    world.add_component_to_entity(player_entity, MapComponent::new("src/player_map.txt"));
+    std::process::exit(0);
 
     let second_location = world.new_entity();
     world.add_component_to_entity(second_location, LocationComponent{x: 0, y: 0});
 
     loop {
-
-        input_system(&mut buffer);
-        update_player_location_system(&world, &buffer);
+        let command_vec = input_system(&mut buffer);
+        update_player_system(&world, &command_vec);
         print_location_system(&world);
-        // handle input
-        // run systems (that edit game state)
-    
-        //std::process::exit(0);
     }
 
 

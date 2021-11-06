@@ -1,0 +1,4 @@
+{x:0,y:0} - "There is a house FOWARD of me"
+{x:1,y:0} - "I am at x 1"
+{x:2,y:0} - "I am at x 2"
+{x:3,y:0} - "I am at x 3"

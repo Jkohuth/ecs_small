@@ -50,9 +50,23 @@ Resources:
             }
         }
 
-2-11-21
+3-11-21
     Tasks:
         Iterate through the supplied text, confirm if its one of the enumerated command
             Confirm if it's one of the three enumerations
                 ignore or throw warning?
             branch off to a separate function if it's one of the them
+            How do I want to prepare the arguments to pass along? 
+                A vector of strings for now
+
+4-11-21
+    I got a decent system in place to read in and parse input into requiste commands. I see a few branches I could walk today
+    Commands:
+        Use - Create an inventory of items for the player to hold 
+        Check - Map out the world and write up quick synopsis of what is in every lay out 
+            Hardcode the data or read it in?
+                Reading it in would be the more interesting way of doing things
+                Create a txt file, read it in at Startup
+                World will contain a Map
+                    Note: Add bounds that should be respected for Move-<DIRECTION>
+        Help - Could be made at the end to explain the different commands
