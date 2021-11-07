@@ -93,7 +93,6 @@ impl World {
                 return Some(component_vec.borrow());
             }
         }
-        
         None
     }
 }
@@ -113,12 +112,11 @@ impl Command {
             "move" => Ok(Command::Move),
             "check" => Ok(Command::Check),
             "use" => Ok(Command::Use),
-            _ => Err("Failed to find command"),
+            _ => Err(s),
         }
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 enum Direction {
     Forward,
@@ -161,6 +159,15 @@ impl LocationComponent {
     fn move_left(&mut self) {
         self.x -= 1;
     }
+    
+    fn update_location(&mut self, dir: Direction) {
+        match dir {
+            Direction::Forward => self.move_forward(),
+            Direction::Right => self.move_right(),
+            Direction::Left => self.move_left(),
+            Direction::Back => self.move_back(),
+        }
+    }
 
     fn print_location(&self) {
         println!("x: {}, y: {}", self.x, self.y);
@@ -183,8 +190,8 @@ impl LocationComponent {
                 digits.clear();
                 continue;
             }
-            // Check if its a base 10 digit
-            if c.is_digit(10) {
+            // Check if its a base 10 digit or if its a '-' for negative numbers
+            if c.is_digit(10)  || (c == '-' && digits.is_empty()) {
                 digits.push(c);
             }
         }
@@ -212,13 +219,14 @@ struct MapComponent {
 
 }
 
+#[allow(unused)]
 impl MapComponent {
     fn new(filename: &str) -> Self {
         let mut area = HashMap::new();
         println!("Filename {}", filename);
         let open_file = fs::File::open(filename).unwrap();
         let reader = BufReader::new(open_file);
-        for (index, line) in reader.lines().enumerate() {
+        for line in reader.lines() {
             let line = line.unwrap();
             let vec_string: Vec<_> = line.split("|").collect();
             // This code makes some assumptions about the strings provided
@@ -231,10 +239,18 @@ impl MapComponent {
             area
         }
     }
+
     fn print_entire_map(&self) {
         for i in self.area.iter() {
             println!("At Location {} the information is {}", i.0.to_string(), i.1);
         }
+    }
+    // May need to return Result and not Option, still mulling over if I want an Err message
+    fn check_area(&self, location: &LocationComponent) -> Result<&String, &str> {
+        if let Some(description) = self.area.get(location) {
+            return Ok(description);
+        } 
+        Err("Player is out of bounds")
     }
 }
 
@@ -247,6 +263,7 @@ fn print_type_of_with_message<T>(message: &str, _: &T) {
     println!("{}: {}",message, std::any::type_name::<T>());
 }
 
+#[allow(unused)]
 struct PlayerComponent {
     name: String,
 }
@@ -258,6 +275,12 @@ impl PlayerComponent {
         }
     }
 }
+
+// Ugly will fix later
+const HELP_STRING: &'static str = "Availabile Commands {{Move, Check, Use}}
+When I Move I need to decide on a Direction {{Forward, Back, Left, Right}}
+When I Check the area I can find out more about my surroundings
+I can also Use items in my inventory";
 
 fn input_system(buffer: &mut String) -> Vec<&str> {
     get_input(buffer);
@@ -280,6 +303,12 @@ fn process_string(buffer: &mut String) -> Vec<&str> {
         std::process::exit(0);
     }
     let mut command_vec: Vec<&str> = vec![];
+
+    if buffer.to_lowercase().contains("help") {
+        println!("{}", HELP_STRING);
+        return command_vec;
+    }
+
     command_vec.extend(buffer.split_ascii_whitespace());
 
     command_vec
@@ -299,6 +328,7 @@ fn print_location_system(world: &World) {
     }
 }
 
+#[allow(unused)]
 fn print_map_system(world: &World) {
     let borrow_map_wrapped = world.borrow_component::<MapComponent>();
     if borrow_map_wrapped.is_none() {
@@ -312,53 +342,46 @@ fn print_map_system(world: &World) {
     }
 }
 
-fn update_player_system(world: & World, command_vec: &Vec<&str>) {
-    let mut players = world.borrow_component_mut::<PlayerComponent>().unwrap();
-    let mut locations = world.borrow_component_mut::<LocationComponent>().unwrap(); 
-    
-
-    let zip = players.iter_mut().zip(locations.iter_mut());
-    let iter = zip.filter_map(|(player, location)| Some((player.as_mut()?, location.as_mut()?)));
-
-    for (player, mut location) in iter {
-        print!("Player {} ", player.name);
-        handle_player_commands((&player, &mut location), command_vec);
-    }
-
-}
-
-fn handle_player_commands(player: (&PlayerComponent, &mut LocationComponent), command_vec: &Vec<&str>) {
+fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: usize) {
     if command_vec.is_empty() {
+        //println!("Require a command to know what to do next");
         return;
     }
-    let mut iter = command_vec.iter();
 
-    let command = Command::from_str(iter.next().unwrap_or(&"Failed to find next entry in vector"));
+    // Im not fully grasping the ECS system yet since Im editing on the player variables based on input
+    // Perhaps if I add other entities into this world I will better understand how to break out the logic
+    //let players = world.borrow_component::<PlayerComponent>().unwrap();
+    let mut locations = world.borrow_component_mut::<LocationComponent>().unwrap(); 
+    let map = world.borrow_component::<MapComponent>().unwrap();
+    
+    let player_location = locations[player_entity].as_mut().expect("Player does not have a location");
+    let player_map = map[player_entity].as_ref().expect("Player does not have a map");
+
+    let mut iter = command_vec.iter();
+    let command = Command::from_str(iter.next().unwrap_or(&"Command Required to act {{Move, Check, Use}}"));
     match command {
         Ok(Command::Move) => {
-            let dir_wrapped = Direction::from_str(iter.next().unwrap_or(&"Failed to find next entry in vector"));
-            if let Ok(dir) = dir_wrapped {
-                update_location(player.1, dir);
+            if let Ok(dir) = Direction::from_str(iter.next().unwrap_or(&"Failed to find next entry in vector")) {
+                player_location.update_location(dir);
+            } else {
+                // TODO - Make this more immersive "I'm not sure which direction to go"
+                println!("Failed to find a direction to move to {{Forward, Back, Left, Right}}");
             }
         },
         Ok(Command::Check) => {
-            // I need to pass world in here all together as I don't have the desired components -_-
+            let check_area = player_map.check_area(player_location);
+            match check_area {
+                Ok(result) => println!("{}", result),
+                Err(error) => println!("{}", error),
+            }
         }
         Ok(Command::Use) => {
 
         }
         Err(e) => {
-            println!("Error bad input: {}", e);
+            // TODO - Make this more immersive "I'm not sure which direction to go"
+            println!("Error bad input: \"{}\" is not a command\nTry asking for {{Help}}", e);
         }
-    }
-}
-
-fn update_location(location: &mut LocationComponent, dir: Direction) {
-    match dir {
-        Direction::Forward => location.move_forward(),
-        Direction::Right => location.move_right(),
-        Direction::Left => location.move_left(),
-        Direction::Back => location.move_back(),
     }
 }
 
@@ -371,18 +394,14 @@ fn main() {
     let player_entity = world.new_entity();
     world.add_component_to_entity(player_entity, PlayerComponent::new("Jakob"));
     world.add_component_to_entity(player_entity, LocationComponent{x: 0, y: 0});
-    world.add_component_to_entity(player_entity, MapComponent::new("player_map.txt"));
-    print_map_system(&world);
-    std::process::exit(0);
+    world.add_component_to_entity(player_entity, MapComponent::new("src/player_map.txt"));
 
     let second_location = world.new_entity();
     world.add_component_to_entity(second_location, LocationComponent{x: 0, y: 0});
 
     loop {
         let command_vec = input_system(&mut buffer);
-        update_player_system(&world, &command_vec);
+        update_player_system(&world, &command_vec, player_entity);
         print_location_system(&world);
     }
-
-
 }

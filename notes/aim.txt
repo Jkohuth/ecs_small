@@ -88,3 +88,13 @@ Resources:
         Player-Use -> Check if an item can be used at a certain area
 
     this is all still new to me but I am currently satisfied with the progress I am making
+
+7-11-21
+    There seems to be some disagreement between where the file is located on linux and windows.
+    It's probably worth taking the time to find out how to properly store resources in a rust project
+
+    Potential Tasks
+        - Create a list of items and the "Use" Struct for the player
+            - Need to create the world and "plot" for this to take effect
+        - Pass "World" into the handle player movement so it has the proper components
+        - Create the Map with the different entries for the locations
