@@ -1,6 +1,6 @@
 use std::io;
 use std::cell::{Ref, RefCell, RefMut};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{BufRead, BufReader};
 
@@ -137,7 +137,48 @@ impl Direction {
     }
 }
 
-#[derive(Eq, Hash)]
+#[derive(Debug)]
+enum Inquire {
+    Pocket,
+    Area
+}
+impl Inquire {
+    fn from_str(s: &str) -> Result<Inquire, &str> {
+        match s {
+            "pocket" => Ok(Inquire::Pocket),
+            "area" => Ok(Inquire::Area),
+            _ => Err("Failed to find something to inquire")
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+enum Item {
+    Hairspray,
+    Lighter,
+    Watch,
+}
+
+impl Item {
+    fn from_str(s: &str) -> Result<Item, &str> {
+        match s {
+            "hairspray" => Ok(Item::Hairspray),
+            "lighter" => Ok(Item::Lighter),
+            "watch" => Ok(Item::Watch),
+            _ => Err("Failed to find the item")
+        }
+    }
+
+    fn to_string(&self) -> &str {
+        match self {
+            Item::Hairspray => "Hairspray",
+            Item::Lighter => "Lighter",
+            Item::Watch => "Watch",
+        }
+    }
+}
+
+#[derive(Eq, Hash, Copy, Clone)]
 struct LocationComponent {
     x: i32,
     y: i32,
@@ -145,21 +186,39 @@ struct LocationComponent {
 
 impl LocationComponent {
     fn move_forward(&mut self) {
-        self.y += 1;
+        if self.y < 2 {
+            self.y += 1;
+            return;
+        } 
+        self.print_out_of_bounds();
     }
 
     fn move_back(&mut self) {
-        self.y -= 1;
+        if self.y > 0 {
+            self.y -= 1;
+            return;
+        }
+        self.print_out_of_bounds();
     }
 
     fn move_right(&mut self) {
-        self.x += 1;
+        if self.x < 2 {
+            self.x += 1;
+            return;
+        }
+        self.print_out_of_bounds();
     }
 
     fn move_left(&mut self) {
-        self.x -= 1;
+        if self.x > 0 {
+            self.x -= 1;
+            return;
+        }
+        self.print_out_of_bounds();
     }
-    
+    fn print_out_of_bounds(&self) {
+        println!("I don't want to stray to far from my house");
+    }
     fn update_location(&mut self, dir: Direction) {
         match dir {
             Direction::Forward => self.move_forward(),
@@ -216,6 +275,7 @@ struct MapComponent {
     // I can have multiple maps based on who is holding it (enemy/player) so it should be
     // a component added to the player
     area: HashMap<LocationComponent, String>,
+    item_locations: HashMap<LocationComponent, String>
 
 }
 
@@ -223,6 +283,7 @@ struct MapComponent {
 impl MapComponent {
     fn new(filename: &str) -> Self {
         let mut area = HashMap::new();
+        let mut item_locations = HashMap::new();
         println!("Filename {}", filename);
         let open_file = fs::File::open(filename).unwrap();
         let reader = BufReader::new(open_file);
@@ -231,12 +292,17 @@ impl MapComponent {
             let vec_string: Vec<_> = line.split("|").collect();
             // This code makes some assumptions about the strings provided
             let location: LocationComponent = LocationComponent::parse(vec_string[0]).unwrap();
-            area.insert(location, String::from(vec_string[1]));
+            area.insert(location.clone(), String::from(vec_string[1]));
+            if vec_string.len() > 2 {
+                println!("There's got to be a better way of doing this");
+                item_locations.insert(location.clone(), String::from(vec_string[2]));
+            }
         }
         //let file = fs::read_to_string(filename).unwrap_or(String::from("Failed to find file"));
         //println!("File {} Contents {}", filename, file);
         MapComponent {
-            area
+            area,
+            item_locations
         }
     }
 
@@ -252,6 +318,14 @@ impl MapComponent {
         } 
         Err("Player is out of bounds")
     }
+    fn check_item_locations(&mut self, location: &LocationComponent) -> Result<String, &str> {
+        if let Some(item) = self.item_locations.get(location) {
+            let ret_item = item.clone(); // Cloning here since I want to remove the entry after taking the value
+            self.item_locations.remove(location);
+            return Ok(ret_item);
+        }
+        Err("There isn't anything else here")
+    }
 }
 
 #[allow(unused)]
@@ -266,20 +340,36 @@ fn print_type_of_with_message<T>(message: &str, _: &T) {
 #[allow(unused)]
 struct PlayerComponent {
     name: String,
+    inventory: HashSet<Item>,
 }
 
 impl PlayerComponent {
     fn new(input: &str) -> Self {
+        let mut inventory = HashSet::new();
+        inventory.insert(Item::Lighter);
+        inventory.insert(Item::Hairspray);
         PlayerComponent {
             name: String::from(input),
+            inventory
         }
+    }
+    fn list_inventory(&self) {
+        let mut list = String::new();
+        list.push('{');
+        self.inventory.iter().for_each(|x| {
+            list.push_str(x.to_string());
+            list.push_str(", ")
+        });
+        list.truncate(list.len() - 2); // Hard Number but I want to remove the ", "
+        list.push('}');
+        println!("I have {} in my pocket", list);
     }
 }
 
 // Ugly will fix later
 const HELP_STRING: &'static str = "Availabile Commands {{Move, Check, Use}}
 When I Move I need to decide on a Direction {{Forward, Back, Left, Right}}
-When I Check the area I can find out more about my surroundings
+I could Check my {{Pocket}} or the surrounding {{Area}} 
 I can also Use items in my inventory";
 
 fn input_system(buffer: &mut String) -> Vec<&str> {
@@ -350,12 +440,13 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
 
     // Im not fully grasping the ECS system yet since Im editing on the player variables based on input
     // Perhaps if I add other entities into this world I will better understand how to break out the logic
-    //let players = world.borrow_component::<PlayerComponent>().unwrap();
+    let players = world.borrow_component::<PlayerComponent>().unwrap();
     let mut locations = world.borrow_component_mut::<LocationComponent>().unwrap(); 
-    let map = world.borrow_component::<MapComponent>().unwrap();
+    let mut map = world.borrow_component_mut::<MapComponent>().unwrap();
     
     let player_location = locations[player_entity].as_mut().expect("Player does not have a location");
-    let player_map = map[player_entity].as_ref().expect("Player does not have a map");
+    let mut player_map = map[player_entity].as_mut().expect("Player does not have a map");
+    let player_self = players[player_entity].as_ref().expect("Player does not exist");
 
     let mut iter = command_vec.iter();
     let command = Command::from_str(iter.next().unwrap_or(&"Command Required to act {{Move, Check, Use}}"));
@@ -369,14 +460,37 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
             }
         },
         Ok(Command::Check) => {
-            let check_area = player_map.check_area(player_location);
-            match check_area {
-                Ok(result) => println!("{}", result),
-                Err(error) => println!("{}", error),
+            if let Ok(inq) = Inquire::from_str(iter.next().unwrap_or(&"Failed to find next entry in the vector")) {
+                match inq {
+                    Inquire::Area => {
+                        match player_map.check_area(player_location) {
+                            Ok(result) =>  {
+                                println!("{}", result);
+                                match player_map.check_item_locations(player_location) {
+                                    Ok(item) => println!("I found {}", item),
+                                    Err(err) => println!("{}", err),
+                                }
+                            }
+                            Err(error) => println!("{}", error),
+                        }
+                    }
+                    Inquire::Pocket => player_self.list_inventory(),
+                }
+            }  else {
+                println!("I'm not sure what to check, all I see is the {{Area}} and all I have are what's in my {{Pocket}}");
+
             }
         }
         Ok(Command::Use) => {
-
+            if let Ok(item) = Item::from_str(iter.next().unwrap_or(&"Failed to find next entry in the vector")) {
+                match item {
+                    Item::Hairspray => println!("Using Hairspray"),
+                    Item::Lighter => println!("Using Lighter"),
+                    Item::Watch => println!("Using Watch"),
+                }
+            } else {
+                println!("Not sure what I should use. Perhaps I should {{check pocket}}");
+            }
         }
         Err(e) => {
             // TODO - Make this more immersive "I'm not sure which direction to go"

@@ -98,3 +98,19 @@ Resources:
             - Need to create the world and "plot" for this to take effect
         - Pass "World" into the handle player movement so it has the proper components
         - Create the Map with the different entries for the locations
+
+9-11-21
+    Updated the Check to include what you want to check the gernal area or your inventory
+    I still need to create the map however I did create the boundaries the player can move in (Hard Coded)
+
+    Today I will store Items in the Map data
+        Will that require additional information in the HashMap of the data?
+        After an item is taken, overwrite the "area" hashmap value to indicate the new information
+
+    Player now checks area to see if there is an item there
+
+10-11-21
+    Add the inventory struct
+
+    Create the item enum
+
