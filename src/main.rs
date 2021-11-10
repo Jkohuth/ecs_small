@@ -347,7 +347,6 @@ impl PlayerComponent {
     fn new(input: &str) -> Self {
         let mut inventory = HashSet::new();
         inventory.insert(Item::Lighter);
-        inventory.insert(Item::Hairspray);
         PlayerComponent {
             name: String::from(input),
             inventory
@@ -363,6 +362,10 @@ impl PlayerComponent {
         list.truncate(list.len() - 2); // Hard Number but I want to remove the ", "
         list.push('}');
         println!("I have {} in my pocket", list);
+    }
+
+    fn insert_item(&mut self, item: Item) {
+        self.inventory.insert(item);
     }
 }
 
@@ -440,13 +443,13 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
 
     // Im not fully grasping the ECS system yet since Im editing on the player variables based on input
     // Perhaps if I add other entities into this world I will better understand how to break out the logic
-    let players = world.borrow_component::<PlayerComponent>().unwrap();
+    let mut players = world.borrow_component_mut::<PlayerComponent>().unwrap();
     let mut locations = world.borrow_component_mut::<LocationComponent>().unwrap(); 
     let mut map = world.borrow_component_mut::<MapComponent>().unwrap();
     
     let player_location = locations[player_entity].as_mut().expect("Player does not have a location");
     let mut player_map = map[player_entity].as_mut().expect("Player does not have a map");
-    let player_self = players[player_entity].as_ref().expect("Player does not exist");
+    let player_self = players[player_entity].as_mut().expect("Player does not exist");
 
     let mut iter = command_vec.iter();
     let command = Command::from_str(iter.next().unwrap_or(&"Command Required to act {{Move, Check, Use}}"));
@@ -467,8 +470,12 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
                             Ok(result) =>  {
                                 println!("{}", result);
                                 match player_map.check_item_locations(player_location) {
-                                    Ok(item) => println!("I found {}", item),
-                                    Err(err) => println!("{}", err),
+                                    Ok(item) => {
+                                        println!("I found {}", item);
+                                        player_self.insert_item(Item::from_str(&item).unwrap());
+                                    }
+                                    _ => (), // Do nothing if we already found the item
+                                    //Err(err) => println!("{}", err),
                                 }
                             }
                             Err(error) => println!("{}", error),
