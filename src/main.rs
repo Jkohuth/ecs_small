@@ -1,8 +1,11 @@
 use std::io;
+use std::io::{BufRead, BufReader};
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::time::{Duration, SystemTime};
+use std::thread::sleep; // Only for experimentation purposes
+
 
 trait Component {
     fn as_any(&self) -> &dyn std::any::Any;
@@ -471,7 +474,7 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
                                 println!("{}", result);
                                 match player_map.check_item_locations(player_location) {
                                     Ok(item) => {
-                                        println!("I found {}", item);
+                                        println!("Looks like there's {} here. I'll hold on to it for later", item);
                                         player_self.insert_item(Item::from_str(&item).unwrap());
                                     }
                                     _ => (), // Do nothing if we already found the item
@@ -516,6 +519,15 @@ fn main() {
     world.add_component_to_entity(player_entity, PlayerComponent::new("Jakob"));
     world.add_component_to_entity(player_entity, LocationComponent{x: 0, y: 0});
     world.add_component_to_entity(player_entity, MapComponent::new("src/player_map.txt"));
+
+    // Success you have the current Epoch time, now at the start of every loop compare to see if the time 
+    // limit has passed
+    let now = SystemTime::now();
+    println!("JAKOB the time now is {:?}", now);
+
+    sleep(Duration::new(2, 0));
+    let now = SystemTime::now();
+    println!("JAKOB the time now is {:?}", now);
 
     let second_location = world.new_entity();
     world.add_component_to_entity(second_location, LocationComponent{x: 0, y: 0});

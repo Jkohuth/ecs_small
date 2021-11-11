@@ -114,3 +114,8 @@ Resources:
 
     Create the item enum
 
+11-11-21
+    To avoid writing any story or figuring out how I am going to set up the item usage I've decided to create a timer to ensure the
+    game doesn't drag on unnecessarily.
+
+    Adding a timer in will hide the sheer lack of content
