@@ -160,6 +160,7 @@ enum Item {
     Hairspray,
     Lighter,
     Watch,
+    Rock,
 }
 
 impl Item {
@@ -168,6 +169,7 @@ impl Item {
             "hairspray" => Ok(Item::Hairspray),
             "lighter" => Ok(Item::Lighter),
             "watch" => Ok(Item::Watch),
+            "rock" => Ok(Item::Rock),
             _ => Err("Failed to find the item")
         }
     }
@@ -177,6 +179,7 @@ impl Item {
             Item::Hairspray => "Hairspray",
             Item::Lighter => "Lighter",
             Item::Watch => "Watch",
+            Item::Rock => "Rock"
         }
     }
 }
