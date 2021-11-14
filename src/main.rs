@@ -300,7 +300,6 @@ impl MapComponent {
             let location: LocationComponent = LocationComponent::parse(vec_string[0]).unwrap();
             area.insert(location.clone(), String::from(vec_string[1]));
             if vec_string.len() > 2 {
-                println!("There's got to be a better way of doing this");
                 item_locations.insert(location.clone(), String::from(vec_string[2]));
             }
         }
@@ -382,7 +381,9 @@ impl PlayerComponent {
 const HELP_STRING: &'static str = "Availabile Commands {{Move, Check, Use}}
 When I Move I need to decide on a Direction {{Forward, Back, Left, Right}}
 I could Check my {{Pocket}} or the surrounding {{Area}} 
-I can also Use items in my inventory";
+I can also {{Use}}xf items in my inventory";
+
+const GAME_MAX_DURATION: u64 = 120; 
 
 fn input_system(buffer: &mut String) -> Vec<&str> {
     get_input(buffer);
@@ -445,13 +446,6 @@ fn print_map_system(world: &World) {
 }
 
 
-fn check_player_timeout(world: &World, player_entity: usize) {
-    // Borrow the Player
-    let players = world.borrow_component::<PlayerComponent>().unwrap();
-    //let player_self = players[player_entit]
-    // Check time elapsed 
-}
-
 fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: usize) {
     if command_vec.is_empty() {
         //println!("Require a command to know what to do next");
@@ -511,6 +505,7 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
                     Item::Hairspray => println!("Using Hairspray"),
                     Item::Lighter => println!("Using Lighter"),
                     Item::Watch => println!("Using Watch"),
+                    Item::Rock => println!("Using Rock"),
                 }
             } else {
                 println!("Not sure what I should use. Perhaps I should {{check pocket}}");
@@ -520,6 +515,19 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
             // TODO - Make this more immersive "I'm not sure which direction to go"
             println!("Error bad input: \"{}\" is not a command\nTry asking for {{Help}}", e);
         }
+    }
+}
+fn check_time_system(world: &World, player_entity: usize) {
+    let player_components = world.borrow_component::<PlayerComponent>().unwrap();
+    let player_self = player_components[player_entity].as_ref().unwrap();
+    let now = SystemTime::now();
+    let duration = now.duration_since(player_self.start_time).unwrap();
+
+
+    if duration.as_secs() > GAME_MAX_DURATION {
+        println!("You froze to death");
+        println!("Game Over");
+        std::process::exit(0);
     }
 }
 
@@ -534,21 +542,12 @@ fn main() {
     world.add_component_to_entity(player_entity, LocationComponent{x: 0, y: 0});
     world.add_component_to_entity(player_entity, MapComponent::new("src/player_map.txt"));
 
-    // Success you have the current Epoch time, now at the start of every loop compare to see if the time 
-    // limit has passed
-    let now = SystemTime::now();
-    println!("JAKOB the time now is {:?}", now);
-
-    sleep(Duration::new(2, 0));
-    let now = SystemTime::now();
-    println!("JAKOB the time now is {:?}", now);
-
     let second_location = world.new_entity();
     world.add_component_to_entity(second_location, LocationComponent{x: 0, y: 0});
 
     loop {
         let command_vec = input_system(&mut buffer);
+        check_time_system(&world, player_entity);
         update_player_system(&world, &command_vec, player_entity);
-        print_location_system(&world);
     }
 }
