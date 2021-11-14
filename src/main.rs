@@ -344,15 +344,18 @@ fn print_type_of_with_message<T>(message: &str, _: &T) {
 struct PlayerComponent {
     name: String,
     inventory: HashSet<Item>,
+    start_time: SystemTime,
 }
 
 impl PlayerComponent {
     fn new(input: &str) -> Self {
         let mut inventory = HashSet::new();
         inventory.insert(Item::Lighter);
+        let start_time = SystemTime::now();
         PlayerComponent {
             name: String::from(input),
-            inventory
+            inventory,
+            start_time,
         }
     }
     fn list_inventory(&self) {
@@ -436,6 +439,14 @@ fn print_map_system(world: &World) {
     for map in map_iter {
         map.as_ref().unwrap().print_entire_map();
     }
+}
+
+
+fn check_player_timeout(world: &World, player_entity: usize) {
+    // Borrow the Player
+    let players = world.borrow_component::<PlayerComponent>().unwrap();
+    //let player_self = players[player_entit]
+    // Check time elapsed 
 }
 
 fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: usize) {
