@@ -1,4 +1,9 @@
-{x:0,y:0}|"There is a house FOWARD of me"|hairspray
-{x:-1,y:0}|"I am at x 1"
-{x:2,y:0}|"I am at x 2"
-{x:3,y:0}|"I am at x 3"
+{x:0,y:0}|"I think the cabin is somewhere nearby"|hairspray
+{x:1,y:0}|"I stand by the edge of the woods, the house is Forward of me"
+{x:2,y:0}|"I am by the side of the cabin next to the trash"|hairspray
+{x:0,y:1}|"Theres a small pile of rocks here"|rock
+{x:1,y:1}|""
+{x:2,y:1}|"It looks like the porch is close by here"
+{x:0,y:2}|""
+{x:1,y:2}|""
+{x:2,y:2}|"I finally found my way back to the cabin, it looks like the doorknob is frozen"
