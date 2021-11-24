@@ -119,3 +119,17 @@ Resources:
     game doesn't drag on unnecessarily.
 
     Adding a timer in will hide the sheer lack of content
+23-11-21
+    I have spent some time study separate from working on this small project, however I feel the need to wrap this up and progress toward my
+    larger goal
+
+    Goals:
+        - Populate the player map with information - DONE (Albeit rough)
+        - Display the player map information after doing a "Move" - DONE
+24-11-21
+    Need a better way to organize my TODOs rather than leave them sprinkled throughout the code
+
+    Goal:
+        - Make Door Component that checks whenever the user is in the correct location and has used an item
+        - Process commands outside the update Player system as more systems will use them
+        TODO: Don't display the location data if the user is pushing against the edge of the map

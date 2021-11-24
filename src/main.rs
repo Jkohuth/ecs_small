@@ -3,8 +3,7 @@ use std::io::{BufRead, BufReader};
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::time::{Duration, SystemTime};
-use std::thread::sleep; // Only for experimentation purposes
+use std::time:: SystemTime;
 
 
 trait Component {
@@ -157,7 +156,7 @@ impl Inquire {
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 enum Item {
-    Hairspray,
+    Canister,
     Lighter,
     Watch,
     Rock,
@@ -166,7 +165,7 @@ enum Item {
 impl Item {
     fn from_str(s: &str) -> Result<Item, &str> {
         match s {
-            "hairspray" => Ok(Item::Hairspray),
+            "canister" => Ok(Item::Canister),
             "lighter" => Ok(Item::Lighter),
             "watch" => Ok(Item::Watch),
             "rock" => Ok(Item::Rock),
@@ -176,7 +175,7 @@ impl Item {
 
     fn to_string(&self) -> &str {
         match self {
-            Item::Hairspray => "Hairspray",
+            Item::Canister => "Canister",
             Item::Lighter => "Lighter",
             Item::Watch => "Watch",
             Item::Rock => "Rock"
@@ -290,7 +289,6 @@ impl MapComponent {
     fn new(filename: &str) -> Self {
         let mut area = HashMap::new();
         let mut item_locations = HashMap::new();
-        println!("Filename {}", filename);
         let open_file = fs::File::open(filename).unwrap();
         let reader = BufReader::new(open_file);
         for line in reader.lines() {
@@ -326,7 +324,7 @@ impl MapComponent {
     fn check_item_locations(&mut self, location: &LocationComponent) -> Result<String, &str> {
         if let Some(item) = self.item_locations.get(location) {
             let ret_item = item.clone(); // Cloning here since I want to remove the entry after taking the value
-            self.item_locations.remove(location);
+            self.item_locations.remove(location); // This works due to interior mutability
             return Ok(ret_item);
         }
         Err("There isn't anything else here")
@@ -353,6 +351,7 @@ impl PlayerComponent {
     fn new(input: &str) -> Self {
         let mut inventory = HashSet::new();
         inventory.insert(Item::Lighter);
+        inventory.insert(Item::Watch);
         let start_time = SystemTime::now();
         PlayerComponent {
             name: String::from(input),
@@ -377,11 +376,29 @@ impl PlayerComponent {
     }
 }
 
+struct DoorComponent {
+    // bool
+    isFrozen: bool,
+}
+
+impl DoorComponent {
+    pub fn new() -> Self {
+        DoorComponent {
+            isFrozen: true,
+        }
+    }
+}
+
+
 // Ugly will fix later
 const HELP_STRING: &'static str = "Availabile Commands {{Move, Check, Use}}
 When I Move I need to decide on a Direction {{Forward, Back, Left, Right}}
 I could Check my {{Pocket}} or the surrounding {{Area}} 
 I can also {{Use}}xf items in my inventory";
+
+const INTRO_STRING: &'static str = "I finally found my way out of the woods. I see the cabin in the distance.
+I am freezing though and don't know how much longer I can stay out here. 
+I'll keep an eye on my {{Watch}} to help me.";
 
 const GAME_MAX_DURATION: u64 = 120; 
 
@@ -416,7 +433,10 @@ fn process_string(buffer: &mut String) -> Vec<&str> {
 
     command_vec
 }
-
+// Didn't need to be it's own system, however in the future I will need a startup system that runs once
+fn print_introduction_system() {
+    println!("{}", INTRO_STRING);
+}
 fn print_location_system(world: &World) {
     let borrow_location_wrapped = world.borrow_component::<LocationComponent>();
     if borrow_location_wrapped.is_none() {
@@ -445,6 +465,20 @@ fn print_map_system(world: &World) {
     }
 }
 
+fn update_door_system(world: &World, command_vec: &Vec<&str>, player_entity: usize, door_entity: usize) {
+    if command_vec.is_empty() {
+        return;
+    }
+    let locations = world.borrow_component::<LocationComponent>().unwrap();
+    let player_location = locations[player_entity].as_ref().expect("Player does not have a location");
+    let door_location = locations[door_entity].as_ref().expect("Door does not have a location");
+
+    if !player_location.eq(door_location) {
+        return;
+    }
+    println!("Player equals door location");
+
+}
 
 fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: usize) {
     if command_vec.is_empty() {
@@ -459,7 +493,7 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
     let mut map = world.borrow_component_mut::<MapComponent>().unwrap();
     
     let player_location = locations[player_entity].as_mut().expect("Player does not have a location");
-    let mut player_map = map[player_entity].as_mut().expect("Player does not have a map");
+    let player_map = map[player_entity].as_mut().expect("Player does not have a map");
     let player_self = players[player_entity].as_mut().expect("Player does not exist");
 
     let mut iter = command_vec.iter();
@@ -468,6 +502,13 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
         Ok(Command::Move) => {
             if let Ok(dir) = Direction::from_str(iter.next().unwrap_or(&"Failed to find next entry in vector")) {
                 player_location.update_location(dir);
+                match player_map.check_area(player_location) {
+                    Ok(result) => {
+                        println!("{}", result);
+                    }
+                    _ => ()
+                }
+                
             } else {
                 // TODO - Make this more immersive "I'm not sure which direction to go"
                 println!("Failed to find a direction to move to {{Forward, Back, Left, Right}}");
@@ -477,19 +518,13 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
             if let Ok(inq) = Inquire::from_str(iter.next().unwrap_or(&"Failed to find next entry in the vector")) {
                 match inq {
                     Inquire::Area => {
-                        match player_map.check_area(player_location) {
-                            Ok(result) =>  {
-                                println!("{}", result);
-                                match player_map.check_item_locations(player_location) {
-                                    Ok(item) => {
-                                        println!("Looks like there's {} here. I'll hold on to it for later", item);
-                                        player_self.insert_item(Item::from_str(&item).unwrap());
-                                    }
-                                    _ => (), // Do nothing if we already found the item
-                                    //Err(err) => println!("{}", err),
-                                }
+                        match player_map.check_item_locations(player_location) {
+                            Ok(item) => {
+                                println!("Looks like there's {} here. I'll hold on to it for later", item);
+                                player_self.insert_item(Item::from_str(&item).unwrap());
                             }
-                            Err(error) => println!("{}", error),
+                            _ => (), // Do nothing if we already found the item
+                            //Err(err) => println!("{}", err),
                         }
                     }
                     Inquire::Pocket => player_self.list_inventory(),
@@ -502,8 +537,13 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
         Ok(Command::Use) => {
             if let Ok(item) = Item::from_str(iter.next().unwrap_or(&"Failed to find next entry in the vector")) {
                 match item {
-                    Item::Hairspray => println!("Using Hairspray"),
-                    Item::Lighter => println!("Using Lighter"),
+                    Item::Canister => {
+                        println!("Using Canister")
+                    }
+                    Item::Lighter => {
+                        // Check location here (Maybe pass it into a new function) and handle knowing if they did the right thing
+                        println!("Using Lighter");
+                    }
                     Item::Watch => println!("Using Watch"),
                     Item::Rock => println!("Using Rock"),
                 }
@@ -517,6 +557,8 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
         }
     }
 }
+
+
 fn check_time_system(world: &World, player_entity: usize) {
     let player_components = world.borrow_component::<PlayerComponent>().unwrap();
     let player_self = player_components[player_entity].as_ref().unwrap();
@@ -525,7 +567,7 @@ fn check_time_system(world: &World, player_entity: usize) {
 
 
     if duration.as_secs() > GAME_MAX_DURATION {
-        println!("You froze to death");
+        println!("I feel my eyelids getting heavy...\nPerhaps I should rest for a bit...");
         println!("Game Over");
         std::process::exit(0);
     }
@@ -533,7 +575,6 @@ fn check_time_system(world: &World, player_entity: usize) {
 
 fn main() {
     // Setup Initial Variables outside of main loop
-    println!("Starting the basic ECS implementation");
     let mut buffer = String::new();
 
     let mut world = World::new();
@@ -542,12 +583,18 @@ fn main() {
     world.add_component_to_entity(player_entity, LocationComponent{x: 0, y: 0});
     world.add_component_to_entity(player_entity, MapComponent::new("src/player_map.txt"));
 
-    let second_location = world.new_entity();
-    world.add_component_to_entity(second_location, LocationComponent{x: 0, y: 0});
+    let door_entity = world.new_entity();
+    world.add_component_to_entity(door_entity, LocationComponent{x: 2, y: 2});
 
+    print_introduction_system();
+    // TODO: Give intro sequence, explaining situation goal and timelimit
+    // TODO: Need to make a door component that reacts when a flag is trigger by the player ie, used Canister at a certain location
     loop {
         let command_vec = input_system(&mut buffer);
         check_time_system(&world, player_entity);
+        // This still operates like object oriented design, I need to change the way to think of it in terms of Data
         update_player_system(&world, &command_vec, player_entity);
+        update_door_system(&world, &command_vec, player_entity, door_entity);
+        print_location_system(&world);
     }
 }

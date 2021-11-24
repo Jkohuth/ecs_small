@@ -1,9 +1,9 @@
-{x:0,y:0}|"I think the cabin is somewhere nearby"|hairspray
-{x:1,y:0}|"I stand by the edge of the woods, the house is Forward of me"
-{x:2,y:0}|"I am by the side of the cabin next to the trash"|hairspray
-{x:0,y:1}|"Theres a small pile of rocks here"|rock
-{x:1,y:1}|""
-{x:2,y:1}|"It looks like the porch is close by here"
-{x:0,y:2}|""
-{x:1,y:2}|""
+{x:0,y:0}|"I am at the driveway. The cabin should be nearby"
+{x:1,y:0}|"I stand by the edge of the woods, I should probably stay by the driveway"
+{x:2,y:0}|"I believe the house is forward to me, nothing behind or near but woods"
+{x:0,y:1}|"Theres a small pile of rubble here"|rock
+{x:1,y:1}|"If I keep following my driveway I'll make my way to the cabin"
+{x:2,y:1}|"I can see the steps to the front door in front of me"
+{x:0,y:2}|"Looks like I am by the trash. I need to get rid of this soon"|canister
+{x:1,y:2}|"I can see through the window of my cabin here. The door is to the right of me"
 {x:2,y:2}|"I finally found my way back to the cabin, it looks like the doorknob is frozen"
