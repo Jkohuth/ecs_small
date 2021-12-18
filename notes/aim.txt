@@ -133,3 +133,40 @@ Resources:
         - Make Door Component that checks whenever the user is in the correct location and has used an item
         - Process commands outside the update Player system as more systems will use them
         TODO: Don't display the location data if the user is pushing against the edge of the map
+12-12-21
+    Worked on other projects recently and took a break from this one, as it's more of a side project that I hope to learn things from.
+    I do want to wrap this up and pass it on to someone else in order to get feedback and consider it done. 
+
+15-12-21
+    Dedicating a small amount of time to not display messages when the boundaries are hit
+
+    Typically with ECS games the componets would be:
+
+        Input
+        Physics
+        Entity Logic
+        Renderer
+        Audio
+
+    I needed to take a step back and write this out as I wasn't seeing the picture, referring to entities sharing data in 
+    similar systems. 
+
+    The game is consisting of acquiring input and handling entity logic. The main thing to separate here is that currently each entity
+    outputs it's own statement. In this structure of things that would be part of the render step so I had to do some workarounds and 
+    checks to make it function.
+
+    Separate out the "Renderer" from the Entity Logic. This is where the edge cases and annoying bugs are coming from.
+
+    How do I want to store the "Renderer" data?
+
+16-12-21
+    Wrapped up entity logic system to now return the output which  will be "Rendered" need to walk through it and ensure that there isn't an overlap of strings
+
+    In a typical game engine each component will be rendered in space with a Z value (or 3D position) which will determine what is in front of each other, do I require
+    each component to have its own text to render and then determine a priority level for what is in front of the other? 
+
+    If I pass a pointer to a string as a mutable reference into a function
+    then within that function append data to that Heap memory the pointer points to
+    when the function exits that heap memory seems to be deallocated
+
+    Going to ask the rust discord for assistance trying to debug this one. I need to know why heap memory is contained to the lifetime of the function

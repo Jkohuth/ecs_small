@@ -359,7 +359,7 @@ impl PlayerComponent {
             start_time,
         }
     }
-    fn list_inventory(&self) {
+    fn get_inventory(&self) -> String {
         let mut list = String::new();
         list.push('{');
         self.inventory.iter().for_each(|x| {
@@ -368,7 +368,7 @@ impl PlayerComponent {
         });
         list.truncate(list.len() - 2); // Hard Number but I want to remove the ", "
         list.push('}');
-        println!("I have {} in my pocket", list);
+        format!("I have {} in my pocket", list)
     }
 
     fn insert_item(&mut self, item: Item) {
@@ -465,7 +465,8 @@ fn print_map_system(world: &World) {
     }
 }
 
-fn update_door_system(world: &World, command_vec: &Vec<&str>, player_entity: usize, door_entity: usize) {
+fn update_door_system(world: &World, command_vec: &Vec<&str>, player_entity: usize, door_entity: usize, game_output: &mut String) {
+    println!("4: {}", game_output);
     if command_vec.is_empty() {
         return;
     }
@@ -476,16 +477,18 @@ fn update_door_system(world: &World, command_vec: &Vec<&str>, player_entity: usi
     if !player_location.eq(door_location) {
         return;
     }
-    println!("Player equals door location");
+    game_output.push_str("Player equals door location");
+    //println!("Player equals door location");
 
 }
 
-fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: usize) {
+fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: usize, game_output: &mut String) {
     if command_vec.is_empty() {
         //println!("Require a command to know what to do next");
         return;
     }
 
+    let mut game_output = String::new();
     // Im not fully grasping the ECS system yet since Im editing on the player variables based on input
     // Perhaps if I add other entities into this world I will better understand how to break out the logic
     let mut players = world.borrow_component_mut::<PlayerComponent>().unwrap();
@@ -501,17 +504,24 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
     match command {
         Ok(Command::Move) => {
             if let Ok(dir) = Direction::from_str(iter.next().unwrap_or(&"Failed to find next entry in vector")) {
+                let player_location_old = player_location.clone();
                 player_location.update_location(dir);
                 match player_map.check_area(player_location) {
                     Ok(result) => {
-                        println!("{}", result);
+                        if !player_location_old.eq(player_location) {
+                            game_output.push_str(result);
+                            //println!("{}", result);
+                        }
                     }
                     _ => ()
                 }
+                println!("1: {}", game_output);
+
                 
             } else {
                 // TODO - Make this more immersive "I'm not sure which direction to go"
-                println!("Failed to find a direction to move to {{Forward, Back, Left, Right}}");
+                game_output.push_str("Failed to find a direction to move to {{Forward, Back, Left, Right}}");
+                // println!("Failed to find a direction to move to {{Forward, Back, Left, Right}}");
             }
         },
         Ok(Command::Check) => {
@@ -520,17 +530,21 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
                     Inquire::Area => {
                         match player_map.check_item_locations(player_location) {
                             Ok(item) => {
-                                println!("Looks like there's {} here. I'll hold on to it for later", item);
+                                //println!("Looks like there's {} here. I'll hold on to it for later", item);
+                                game_output.push_str(format!("Looks like there's {} here. I'll hold on to it for later", item).as_str());
                                 player_self.insert_item(Item::from_str(&item).unwrap());
                             }
                             _ => (), // Do nothing if we already found the item
                             //Err(err) => println!("{}", err),
                         }
                     }
-                    Inquire::Pocket => player_self.list_inventory(),
+                    Inquire::Pocket => {
+                        game_output.push_str(player_self.get_inventory().as_str());
+                    } 
                 }
             }  else {
-                println!("I'm not sure what to check, all I see is the {{Area}} and all I have are what's in my {{Pocket}}");
+                game_output.push_str("I'm not sure what to check, all I see is the {{Area}} and all I have are what's in my {{Pocket}}");
+                //println!("I'm not sure what to check, all I see is the {{Area}} and all I have are what's in my {{Pocket}}");
 
             }
         }
@@ -538,28 +552,49 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
             if let Ok(item) = Item::from_str(iter.next().unwrap_or(&"Failed to find next entry in the vector")) {
                 match item {
                     Item::Canister => {
-                        println!("Using Canister")
+                        game_output.push_str("Using Canister");
+                        //println!("Using Canister")
                     }
                     Item::Lighter => {
                         // Check location here (Maybe pass it into a new function) and handle knowing if they did the right thing
-                        println!("Using Lighter");
+                        game_output.push_str("Using Lighter");
+                        //println!("Using Lighter");
                     }
-                    Item::Watch => println!("Using Watch"),
-                    Item::Rock => println!("Using Rock"),
+                    Item::Watch => game_output.push_str("Using Watch"), //println!("Using Watch"),
+                    _ => ()
                 }
             } else {
-                println!("Not sure what I should use. Perhaps I should {{check pocket}}");
+                game_output.push_str("Not sure what I should use. Perhaps I should {{check pocket}}");
+                //println!("Not sure what I should use. Perhaps I should {{check pocket}}");
             }
         }
         Err(e) => {
             // TODO - Make this more immersive "I'm not sure which direction to go"
-            println!("Error bad input: \"{}\" is not a command\nTry asking for {{Help}}", e);
+            game_output.push_str(format!("Error bad input: \"{}\" is not a command\nTry asking for {{Help}}", e).as_str());
+            //println!("Error bad input: \"{}\" is not a command\nTry asking for {{Help}}", e);
         }
     }
+    println!("2: {}", game_output);
 }
 
+// This function needs to return some form output
+fn entity_logic_system(world: &World, command_vec: &Vec<&str>, player_entity: usize, door_entity: usize) -> String {
+        // This still operates like object oriented design, I need to change the way to think of it in terms of Data
+        let mut game_output = String::from("Hello, World 1\n");
+        println!("0: {}", game_output);
+        update_player_system(&world, &command_vec, player_entity, &mut game_output);
+        println!("3: {}", game_output);
 
-fn check_time_system(world: &World, player_entity: usize) {
+        update_door_system(&world, &command_vec, player_entity, door_entity, &mut game_output);
+        //print_location_system(&world);
+        game_output
+}
+
+fn render_system(display_text: &str) {
+    println!("{}", display_text);
+}
+
+fn time_system(world: &World, player_entity: usize) {
     let player_components = world.borrow_component::<PlayerComponent>().unwrap();
     let player_self = player_components[player_entity].as_ref().unwrap();
     let now = SystemTime::now();
@@ -591,10 +626,8 @@ fn main() {
     // TODO: Need to make a door component that reacts when a flag is trigger by the player ie, used Canister at a certain location
     loop {
         let command_vec = input_system(&mut buffer);
-        check_time_system(&world, player_entity);
-        // This still operates like object oriented design, I need to change the way to think of it in terms of Data
-        update_player_system(&world, &command_vec, player_entity);
-        update_door_system(&world, &command_vec, player_entity, door_entity);
-        print_location_system(&world);
+        time_system(&world, player_entity);
+        let output = entity_logic_system(&world, &command_vec, player_entity, door_entity);
+        render_system(&output);
     }
 }

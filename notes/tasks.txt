@@ -1,0 +1,10 @@
+
+TODO:
+    "Use" keyword needs implementation 
+
+        Use Canister - triggers a flag on the door, prints a message
+        Use Rock - Used in window location triggers the ending of the game
+        Use watch - Displays how much time before a game over
+        Use Lighter: Update_Door_System handles these calls
+            Triggers the end of the game by the door component if the canister flag is set
+            Triggers a hint when the player attempted to use it without using the canister first at the correct location
