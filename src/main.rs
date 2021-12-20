@@ -5,27 +5,32 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::time:: SystemTime;
 
-
+// Component trait is used to have overlap between each component type supplied
 trait Component {
     fn as_any(&self) -> &dyn std::any::Any;
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
     fn push_none(&mut self);
 }
 
+// Every component type needs to be known at run time and last the duration of the program
+// Implemented for a mutable vectors that could contain the component
+// All component vectors have the same size
 impl<T: 'static> Component for RefCell<Vec<Option<T>>> {
+    // Borrow the vector of component
     fn as_any(&self) -> &dyn std::any::Any {
         self as &dyn std::any::Any
     }
-
+    // Mutability borrow the vector of compoent
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self as &mut dyn std::any::Any
     }
-
+    // Push empty into that vector location
     fn push_none(&mut self) {
         self.get_mut().push(None)
     }
 }
 
+// Contains all of the data used by the program
 struct World {
     entities_count: usize,
     components: Vec<Box<dyn Component>>
@@ -41,6 +46,8 @@ impl World {
 
     fn new_entity(&mut self) -> usize {
         let entity_id = self.entities_count;
+        // Append a new None entry to every component type we have available 
+        // Which  will be the new entity id
         for component in self.components.iter_mut() {
             component.push_none();
         }
@@ -48,6 +55,7 @@ impl World {
         entity_id
     }
 
+    // Populate the component vector at entry "entity"
     fn add_component_to_entity<ComponentType: 'static>(
         &mut self,
         entity: usize,
@@ -63,6 +71,7 @@ impl World {
         }
         let mut new_component: Vec<Option<ComponentType>> = Vec::with_capacity(self.entities_count);
 
+        // Whenever we add a new component type we need to make the vector the same length as the other components
         for _ in 0..self.entities_count {
             new_component.push(None);
         }
@@ -70,10 +79,11 @@ impl World {
         new_component[entity] = Some(component);
 
         //print_type_of(&new_component);
-
+        // Append the pointer to the refcell of the data 
         self.components.push(Box::new(RefCell::new(new_component)));
     }
 
+    // Cycle through the components until you finally find the component tye. Mutably borrow that vector
     fn borrow_component_mut<ComponentType: 'static> (&self) -> Option<RefMut<Vec<Option<ComponentType>>>> {
         for component_vec in self.components.iter() {
             if let Some(component_vec) = component_vec
@@ -86,6 +96,7 @@ impl World {
         None
     }
 
+    // Cycle through the components until you finally find the component tye. Borrow that vector
     fn borrow_component<ComponentType: 'static> (&self) -> Option<Ref<Vec<Option<ComponentType>>>> {
         for component_vec in self.components.iter() {
             if let Some(component_vec) = component_vec
@@ -387,6 +398,12 @@ impl DoorComponent {
             isFrozen: true,
         }
     }
+    pub fn isFrozen(&self) -> bool {
+        self.isFrozen
+    }
+    pub fn setFrozen(&mut self, frozen: bool) {
+        self.isFrozen = frozen;
+    }
 }
 
 
@@ -474,12 +491,37 @@ fn update_door_system(world: &World, command_vec: &Vec<&str>, player_entity: usi
     let player_location = locations[player_entity].as_ref().expect("Player does not have a location");
     let door_location = locations[door_entity].as_ref().expect("Door does not have a location");
 
+
     if !player_location.eq(door_location) {
         return;
     }
     game_output.push_str("Player equals door location");
     //println!("Player equals door location");
+    let mut iter = command_vec.iter();
+    let command = Command::from_str(iter.next().unwrap_or(&"Command Required to act {{Move, Check, Use}}"));
 
+    match command {
+        Ok(Command::Use) => {
+            if let Ok(item) = Item::from_str(iter.next().unwrap_or(&"Item required to use, maybe I should {{Check Pocket}}")) {
+                match item {
+                    Item::Canister => {
+                        let mut doors = world.borrow_component_mut::<DoorComponent>().unwrap();
+                        let door = doors[door_entity].as_mut().expect("Could not find a door component");
+                        if door.isFrozen() {
+//                            println!("*You poured the contents of the canister on the doorknob");
+                            door.setFrozen(false);
+                        } else {
+//                            println!("The canister is already empty");
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        }
+        _ => (),
+    }
+
+  //  println!("Player equals door location");
 }
 
 fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: usize, game_output: &mut String) {
@@ -505,7 +547,13 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
         Ok(Command::Move) => {
             if let Ok(dir) = Direction::from_str(iter.next().unwrap_or(&"Failed to find next entry in vector")) {
                 let player_location_old = player_location.clone();
+                // TODO: Ugly - think of a work around later, perhaps have internal locationcomponent variable
+                let p_loc_data = player_location.clone();
                 player_location.update_location(dir);
+                // If the location hasn't changed don't change the map data
+                if p_loc_data.eq(player_location) {
+                    return;
+                }
                 match player_map.check_area(player_location) {
                     Ok(result) => {
                         if !player_location_old.eq(player_location) {
@@ -515,7 +563,7 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
                     }
                     _ => ()
                 }
-                println!("1: {}", game_output);
+                println!("1\t{}", game_output);
 
                 
             } else {
@@ -570,20 +618,21 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
         }
         Err(e) => {
             // TODO - Make this more immersive "I'm not sure which direction to go"
+            println!("1.5\t{}", game_output);
             game_output.push_str(format!("Error bad input: \"{}\" is not a command\nTry asking for {{Help}}", e).as_str());
             //println!("Error bad input: \"{}\" is not a command\nTry asking for {{Help}}", e);
         }
     }
-    println!("2: {}", game_output);
+    println!("2\t{}", game_output);
 }
 
 // This function needs to return some form output
 fn entity_logic_system(world: &World, command_vec: &Vec<&str>, player_entity: usize, door_entity: usize) -> String {
         // This still operates like object oriented design, I need to change the way to think of it in terms of Data
-        let mut game_output = String::from("Hello, World 1\n");
-        println!("0: {}", game_output);
+        let mut game_output = String::from("Before ");
+        println!("0\t{}", game_output);
         update_player_system(&world, &command_vec, player_entity, &mut game_output);
-        println!("3: {}", game_output);
+        println!("3\t{}", game_output);
 
         update_door_system(&world, &command_vec, player_entity, door_entity, &mut game_output);
         //print_location_system(&world);
