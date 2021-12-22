@@ -629,8 +629,9 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
 // This function needs to return some form output
 fn entity_logic_system(world: &World, command_vec: &Vec<&str>, player_entity: usize, door_entity: usize) -> String {
         // This still operates like object oriented design, I need to change the way to think of it in terms of Data
-        let mut game_output = String::from("Before ");
-        println!("0\t{}", game_output);
+        let mut game_output = String::from("Hello, World 1");
+        game_output.push_str("\t 2 hello world");
+        println!("0: {}", game_output);
         update_player_system(&world, &command_vec, player_entity, &mut game_output);
         println!("3\t{}", game_output);
 
