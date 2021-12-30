@@ -170,3 +170,15 @@ Resources:
     when the function exits that heap memory seems to be deallocated
 
     Going to ask the rust discord for assistance trying to debug this one. I need to know why heap memory is contained to the lifetime of the function
+
+28-12-21
+    Shadowing tripped me up for a bit as I forgot that the redefinition of variables can occur and was giving me bugs.
+
+    I added the watch to the gameplay, I probably need to spend more time writing a detailed map, but for now let me make the win conditions
+
+    Need a system to put in Entity logic that controls the outputs of the game 
+        Losing - Taking more than the alloted time
+        Win bad ending - smashing a window with a rock
+        Win Good Ending - unfreezing the doorknob to get inside
+
+        Function should clear the game_output and override with the specific string required

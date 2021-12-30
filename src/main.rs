@@ -206,7 +206,6 @@ impl LocationComponent {
             self.y += 1;
             return;
         } 
-        self.print_out_of_bounds();
     }
 
     fn move_back(&mut self) {
@@ -214,7 +213,6 @@ impl LocationComponent {
             self.y -= 1;
             return;
         }
-        self.print_out_of_bounds();
     }
 
     fn move_right(&mut self) {
@@ -222,7 +220,6 @@ impl LocationComponent {
             self.x += 1;
             return;
         }
-        self.print_out_of_bounds();
     }
 
     fn move_left(&mut self) {
@@ -230,10 +227,9 @@ impl LocationComponent {
             self.x -= 1;
             return;
         }
-        self.print_out_of_bounds();
     }
-    fn print_out_of_bounds(&self) {
-        println!("I don't want to stray to far from my house");
+    fn get_out_of_bounds(&self) -> String {
+        String::from("I don't want to stray to far from my house")
     }
     fn update_location(&mut self, dir: Direction) {
         match dir {
@@ -356,6 +352,9 @@ struct PlayerComponent {
     name: String,
     inventory: HashSet<Item>,
     start_time: SystemTime,
+    remaining_time: u64,
+    is_alive: bool,
+    is_game_over: bool
 }
 
 impl PlayerComponent {
@@ -368,6 +367,9 @@ impl PlayerComponent {
             name: String::from(input),
             inventory,
             start_time,
+            remaining_time: 0,
+            is_alive: true,
+            is_game_over: false
         }
     }
     fn get_inventory(&self) -> String {
@@ -385,24 +387,43 @@ impl PlayerComponent {
     fn insert_item(&mut self, item: Item) {
         self.inventory.insert(item);
     }
+
+    fn set_remaining_time(&mut self, remaining_time: u64) {
+        self.remaining_time = remaining_time;
+    }
+    fn set_is_alive(&mut self, is_alive: bool) {
+        self.is_alive = is_alive;
+    }
+    fn set_is_game_over(&mut self, is_game_over: bool) {
+        self.is_game_over = is_game_over;
+    }
 }
 
 struct DoorComponent {
-    // bool
-    isFrozen: bool,
+    is_frozen: bool,
+    is_window_intact: bool,
+    is_gasolined: bool
 }
 
 impl DoorComponent {
     pub fn new() -> Self {
         DoorComponent {
-            isFrozen: true,
+            is_frozen: true,
+            is_window_intact: true,
+            is_gasolined: false,
         }
     }
-    pub fn isFrozen(&self) -> bool {
-        self.isFrozen
+    pub fn is_frozen(&self) -> bool {
+        self.is_frozen
     }
-    pub fn setFrozen(&mut self, frozen: bool) {
-        self.isFrozen = frozen;
+    pub fn set_is_frozen(&mut self, frozen: bool) {
+        self.is_frozen = frozen;
+    }
+    pub fn set_is_window_intact(&mut self, window_intact: bool) {
+        self.is_window_intact = window_intact;
+    }
+    pub fn set_is_gasolined(&mut self, gasolined: bool) {
+        self.is_gasolined = gasolined;
     }
 }
 
@@ -411,7 +432,7 @@ impl DoorComponent {
 const HELP_STRING: &'static str = "Availabile Commands {{Move, Check, Use}}
 When I Move I need to decide on a Direction {{Forward, Back, Left, Right}}
 I could Check my {{Pocket}} or the surrounding {{Area}} 
-I can also {{Use}}xf items in my inventory";
+I can also {{Use}} items in my inventory";
 
 const INTRO_STRING: &'static str = "I finally found my way out of the woods. I see the cabin in the distance.
 I am freezing though and don't know how much longer I can stay out here. 
@@ -483,11 +504,12 @@ fn print_map_system(world: &World) {
 }
 
 fn update_door_system(world: &World, command_vec: &Vec<&str>, player_entity: usize, door_entity: usize, game_output: &mut String) {
-    println!("4: {}", game_output);
     if command_vec.is_empty() {
         return;
     }
     let locations = world.borrow_component::<LocationComponent>().unwrap();
+    let mut players = world.borrow_component_mut::<PlayerComponent>().unwrap();
+    let mut player_self = players[player_entity].as_mut().expect("Failed to find Player entity");
     let player_location = locations[player_entity].as_ref().expect("Player does not have a location");
     let door_location = locations[door_entity].as_ref().expect("Door does not have a location");
 
@@ -507,12 +529,20 @@ fn update_door_system(world: &World, command_vec: &Vec<&str>, player_entity: usi
                     Item::Canister => {
                         let mut doors = world.borrow_component_mut::<DoorComponent>().unwrap();
                         let door = doors[door_entity].as_mut().expect("Could not find a door component");
-                        if door.isFrozen() {
+                        if door.is_frozen() {
+                            game_output.push_str("The contents of the canister were poured on the doorknob");
 //                            println!("*You poured the contents of the canister on the doorknob");
-                            door.setFrozen(false);
+                            door.set_is_gasolined(true);
                         } else {
+                            game_output.push_str("The canister is already empty");
+
 //                            println!("The canister is already empty");
                         }
+                    }
+                    Item::Rock => {                        
+                        game_output.push_str("I can smash the window using this rock\n");
+                        game_output.push_str("*SMASHES WINDOW WITH ROCK*");
+                        player_self.set_is_game_over(true);
                     }
                     _ => (),
                 }
@@ -520,17 +550,15 @@ fn update_door_system(world: &World, command_vec: &Vec<&str>, player_entity: usi
         }
         _ => (),
     }
-
-  //  println!("Player equals door location");
 }
 
 fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: usize, game_output: &mut String) {
     if command_vec.is_empty() {
+        game_output.push_str("I may need some {{help}} with what to do next");
         //println!("Require a command to know what to do next");
         return;
     }
 
-    let mut game_output = String::new();
     // Im not fully grasping the ECS system yet since Im editing on the player variables based on input
     // Perhaps if I add other entities into this world I will better understand how to break out the logic
     let mut players = world.borrow_component_mut::<PlayerComponent>().unwrap();
@@ -547,11 +575,10 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
         Ok(Command::Move) => {
             if let Ok(dir) = Direction::from_str(iter.next().unwrap_or(&"Failed to find next entry in vector")) {
                 let player_location_old = player_location.clone();
-                // TODO: Ugly - think of a work around later, perhaps have internal locationcomponent variable
-                let p_loc_data = player_location.clone();
                 player_location.update_location(dir);
                 // If the location hasn't changed don't change the map data
-                if p_loc_data.eq(player_location) {
+                if player_location_old.eq(player_location) {
+                    game_output.push_str(player_location.get_out_of_bounds().as_str());
                     return;
                 }
                 match player_map.check_area(player_location) {
@@ -563,8 +590,6 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
                     }
                     _ => ()
                 }
-                println!("1\t{}", game_output);
-
                 
             } else {
                 // TODO - Make this more immersive "I'm not sure which direction to go"
@@ -600,16 +625,20 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
             if let Ok(item) = Item::from_str(iter.next().unwrap_or(&"Failed to find next entry in the vector")) {
                 match item {
                     Item::Canister => {
-                        game_output.push_str("Using Canister");
+                        //game_output.push_str("Using Canister");
                         //println!("Using Canister")
                     }
                     Item::Lighter => {
                         // Check location here (Maybe pass it into a new function) and handle knowing if they did the right thing
-                        game_output.push_str("Using Lighter");
+                        //game_output.push_str("Using Lighter");
                         //println!("Using Lighter");
                     }
-                    Item::Watch => game_output.push_str("Using Watch"), //println!("Using Watch"),
-                    _ => ()
+                    Item::Watch => {
+                        game_output.push_str(format!("It's so cold, I only have {} seconds before my watch dies", player_self.remaining_time).as_str()) //println!("Using Watch"),
+                    }
+                    Item::Rock => {
+
+                    }
                 }
             } else {
                 game_output.push_str("Not sure what I should use. Perhaps I should {{check pocket}}");
@@ -618,23 +647,43 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
         }
         Err(e) => {
             // TODO - Make this more immersive "I'm not sure which direction to go"
-            println!("1.5\t{}", game_output);
             game_output.push_str(format!("Error bad input: \"{}\" is not a command\nTry asking for {{Help}}", e).as_str());
             //println!("Error bad input: \"{}\" is not a command\nTry asking for {{Help}}", e);
         }
     }
-    println!("2\t{}", game_output);
+}
+
+// Clunky systems requires me to add additional variables for each
+fn game_ending_system(world: &World, player_entity: usize, door_entity: usize, game_output: &mut String) {    
+    let player_components = world.borrow_component::<PlayerComponent>().unwrap();
+    let door_components = world.borrow_component::<DoorComponent>().unwrap();
+    let player_self = player_components[player_entity].as_ref().unwrap();
+    let door = door_components[door_entity].as_ref().unwrap();
+    if player_self.is_game_over {
+        game_output.clear();
+        if !player_self.is_alive {
+        // Losing: boolean flag to check if time has run out
+            game_output.push_str("I feel my eyelids getting heavy...\nPerhaps I should rest for a bit...\nGame Over");
+        } else if !door.is_frozen {
+        // Winning: boolean flag to check if correct item has been used different message
+            game_output.push_str("Looks like the doorknob has thawed and I can get in");
+
+        } else if !door.is_window_intact {
+        // Winning: boolean flag to check if correct item has been used
+            game_output.push_str("There's a hole in the window I can climb through now");
+        } 
+        // Easier to have this handle the program exit
+        render_system(game_output);
+        std::process::exit(0);
+    }
 }
 
 // This function needs to return some form output
 fn entity_logic_system(world: &World, command_vec: &Vec<&str>, player_entity: usize, door_entity: usize) -> String {
-        // This still operates like object oriented design, I need to change the way to think of it in terms of Data
-        let mut game_output = String::from("Before ");
-        println!("0\t{}", game_output);
+        let mut game_output = String::new();
         update_player_system(&world, &command_vec, player_entity, &mut game_output);
-        println!("3\t{}", game_output);
-
         update_door_system(&world, &command_vec, player_entity, door_entity, &mut game_output);
+        game_ending_system(world, player_entity, door_entity, &mut game_output);
         //print_location_system(&world);
         game_output
 }
@@ -644,16 +693,19 @@ fn render_system(display_text: &str) {
 }
 
 fn time_system(world: &World, player_entity: usize) {
-    let player_components = world.borrow_component::<PlayerComponent>().unwrap();
-    let player_self = player_components[player_entity].as_ref().unwrap();
+    let mut player_components = world.borrow_component_mut::<PlayerComponent>().unwrap();
+    let player_self = player_components[player_entity].as_mut().unwrap();
     let now = SystemTime::now();
     let duration = now.duration_since(player_self.start_time).unwrap();
 
 
     if duration.as_secs() > GAME_MAX_DURATION {
-        println!("I feel my eyelids getting heavy...\nPerhaps I should rest for a bit...");
-        println!("Game Over");
-        std::process::exit(0);
+        //println!("I feel my eyelids getting heavy...\nPerhaps I should rest for a bit...");
+        //println!("Game Over");
+        player_self.set_is_alive(false);
+    } else {
+        let remaining_time = GAME_MAX_DURATION - duration.as_secs();
+        player_self.set_remaining_time(remaining_time);
     }
 }
 
@@ -669,7 +721,7 @@ fn main() {
 
     let door_entity = world.new_entity();
     world.add_component_to_entity(door_entity, LocationComponent{x: 2, y: 2});
-
+    
     print_introduction_system();
     // TODO: Give intro sequence, explaining situation goal and timelimit
     // TODO: Need to make a door component that reacts when a flag is trigger by the player ie, used Canister at a certain location
