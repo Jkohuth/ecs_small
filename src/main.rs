@@ -250,7 +250,6 @@ impl LocationComponent {
     // This is a nightmare and I need to find a better way of doing this
     fn parse(input: &str) -> Result<LocationComponent, &str> {
         let mut x: i32 = 0;
-        let mut y: i32 = 0;
         if !input.contains("x") || !input.contains("y") {
             return Err("No Coordinates found");
         }
@@ -266,7 +265,7 @@ impl LocationComponent {
                 digits.push(c);
             }
         }
-        y = digits.parse().unwrap();
+        let y = digits.parse().unwrap();
 
         Ok(LocationComponent { x: x, y: y})
     }
@@ -293,7 +292,24 @@ struct MapComponent {
 
 #[allow(unused)]
 impl MapComponent {
-    fn new(filename: &str) -> Self {
+    fn new(contents: &str) -> Self {
+        let mut area = HashMap::new();
+        let mut item_locations = HashMap::new();
+        for line in contents.lines() {
+            let vec_string: Vec<_> = line.split("|").collect();
+            // This code makes some assumptions about the strings provided
+            let location: LocationComponent = LocationComponent::parse(vec_string[0]).unwrap();
+            area.insert(location.clone(), String::from(vec_string[1]));
+            if vec_string.len() > 2 {
+                item_locations.insert(location.clone(), String::from(vec_string[2]));
+            }
+        }
+        MapComponent {
+            area,
+            item_locations
+        }
+    }
+    fn new_from_file(filename: &str) -> Self {
         let mut area = HashMap::new();
         let mut item_locations = HashMap::new();
         let open_file = fs::File::open(filename).unwrap();
@@ -416,6 +432,9 @@ impl DoorComponent {
     pub fn is_frozen(&self) -> bool {
         self.is_frozen
     }
+    pub fn is_gasolined(&self) -> bool {
+        self.is_gasolined
+    }
     pub fn set_is_frozen(&mut self, frozen: bool) {
         self.is_frozen = frozen;
     }
@@ -517,19 +536,21 @@ fn update_door_system(world: &World, command_vec: &Vec<&str>, player_entity: usi
     if !player_location.eq(door_location) {
         return;
     }
-    game_output.push_str("Player equals door location");
-    //println!("Player equals door location");
     let mut iter = command_vec.iter();
     let command = Command::from_str(iter.next().unwrap_or(&"Command Required to act {{Move, Check, Use}}"));
 
     match command {
         Ok(Command::Use) => {
             if let Ok(item) = Item::from_str(iter.next().unwrap_or(&"Item required to use, maybe I should {{Check Pocket}}")) {
+                let mut doors = world.borrow_component_mut::<DoorComponent>().unwrap();
+                let door = doors[door_entity].as_mut().expect("Could not find a door component");
                 match item {
                     Item::Canister => {
-                        let mut doors = world.borrow_component_mut::<DoorComponent>().unwrap();
-                        let door = doors[door_entity].as_mut().expect("Could not find a door component");
+                        if !player_self.inventory.contains(&Item::Canister) {
+                            return;
+                        } 
                         if door.is_frozen() {
+                            game_output.clear();
                             game_output.push_str("The contents of the canister were poured on the doorknob");
 //                            println!("*You poured the contents of the canister on the doorknob");
                             door.set_is_gasolined(true);
@@ -539,12 +560,30 @@ fn update_door_system(world: &World, command_vec: &Vec<&str>, player_entity: usi
 //                            println!("The canister is already empty");
                         }
                     }
-                    Item::Rock => {                        
+                    Item::Lighter => {
+                        if door.is_gasolined() {
+                            game_output.clear();
+                            game_output.push_str("Looks like I can melt the doorknob now\n");
+                            game_output.push_str("*Lights doorknob aflame*\n");
+                            player_self.set_is_game_over(true);
+                            door.set_is_frozen(false);
+                        } else {
+                            game_output.clear();
+                            game_output.push_str("I'll run out of fuel in my lighter before I finish melting the doorknob"); 
+                        }
+                    }
+                    Item::Rock => {
+                        if !player_self.inventory.contains(&Item::Rock) {
+                            return;
+                        } 
+                        game_output.clear();
                         game_output.push_str("I can smash the window using this rock\n");
-                        game_output.push_str("*SMASHES WINDOW WITH ROCK*");
+                        game_output.push_str("*Smashes window with rock*\n");
+                        door.set_is_window_intact(false);
                         player_self.set_is_game_over(true);
                     }
-                    _ => (),
+                    _ => {
+                    }
                 }
             }
         }
@@ -607,7 +646,9 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
                                 game_output.push_str(format!("Looks like there's {} here. I'll hold on to it for later", item).as_str());
                                 player_self.insert_item(Item::from_str(&item).unwrap());
                             }
-                            _ => (), // Do nothing if we already found the item
+                            _ => { 
+                                game_output.push_str("Looks like there's nothing of interest here");
+                            } // Do nothing if we already found the item
                             //Err(err) => println!("{}", err),
                         }
                     }
@@ -625,18 +666,25 @@ fn update_player_system(world: & World, command_vec: &Vec<&str>, player_entity: 
             if let Ok(item) = Item::from_str(iter.next().unwrap_or(&"Failed to find next entry in the vector")) {
                 match item {
                     Item::Canister => {
-                        //game_output.push_str("Using Canister");
-                        //println!("Using Canister")
+                        if !player_self.inventory.contains(&Item::Canister) {
+                            game_output.push_str("I don't have that on me right now");
+                            return;
+                        } 
+                        game_output.push_str("I have no use for this canister right now");
+
                     }
                     Item::Lighter => {
-                        // Check location here (Maybe pass it into a new function) and handle knowing if they did the right thing
-                        //game_output.push_str("Using Lighter");
-                        //println!("Using Lighter");
+                        game_output.push_str("I have no use for this lighter right now");
                     }
                     Item::Watch => {
                         game_output.push_str(format!("It's so cold, I only have {} seconds before my watch dies", player_self.remaining_time).as_str()) //println!("Using Watch"),
                     }
                     Item::Rock => {
+                        if !player_self.inventory.contains(&Item::Rock) {
+                            game_output.push_str("I don't have that on me right now");
+                            return;
+                        } 
+                        game_output.push_str("I have no use for this rock right now");
 
                     }
                 }
@@ -660,10 +708,10 @@ fn game_ending_system(world: &World, player_entity: usize, door_entity: usize, g
     let player_self = player_components[player_entity].as_ref().unwrap();
     let door = door_components[door_entity].as_ref().unwrap();
     if player_self.is_game_over {
-        game_output.clear();
         if !player_self.is_alive {
-        // Losing: boolean flag to check if time has run out
-            game_output.push_str("I feel my eyelids getting heavy...\nPerhaps I should rest for a bit...\nGame Over");
+            game_output.clear();
+            // Losing: boolean flag to check if time has run out
+            game_output.push_str("I feel my eyelids getting heavy...\nPerhaps I should rest for a bit...");
         } else if !door.is_frozen {
         // Winning: boolean flag to check if correct item has been used different message
             game_output.push_str("Looks like the doorknob has thawed and I can get in");
@@ -672,6 +720,7 @@ fn game_ending_system(world: &World, player_entity: usize, door_entity: usize, g
         // Winning: boolean flag to check if correct item has been used
             game_output.push_str("There's a hole in the window I can climb through now");
         } 
+        game_output.push_str("\nGame Over");
         // Easier to have this handle the program exit
         render_system(game_output);
         std::process::exit(0);
@@ -717,10 +766,12 @@ fn main() {
     let player_entity = world.new_entity();
     world.add_component_to_entity(player_entity, PlayerComponent::new("Jakob"));
     world.add_component_to_entity(player_entity, LocationComponent{x: 0, y: 0});
-    world.add_component_to_entity(player_entity, MapComponent::new("src/player_map.txt"));
+ 
+    world.add_component_to_entity(player_entity, MapComponent::new(include_str!("player_map.txt")));
 
     let door_entity = world.new_entity();
     world.add_component_to_entity(door_entity, LocationComponent{x: 2, y: 2});
+    world.add_component_to_entity(door_entity, DoorComponent::new());
     
     print_introduction_system();
     // TODO: Give intro sequence, explaining situation goal and timelimit
