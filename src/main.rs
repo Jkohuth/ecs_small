@@ -729,6 +729,7 @@ fn game_ending_system(world: &World, player_entity: usize, door_entity: usize, g
 
 // This function needs to return some form output
 fn entity_logic_system(world: &World, command_vec: &Vec<&str>, player_entity: usize, door_entity: usize) -> String {
+
         let mut game_output = String::new();
         update_player_system(&world, &command_vec, player_entity, &mut game_output);
         update_door_system(&world, &command_vec, player_entity, door_entity, &mut game_output);
